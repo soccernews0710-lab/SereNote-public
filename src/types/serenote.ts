@@ -42,6 +42,7 @@ export type SerenoteSymptomLog = {
   time: TimeText;    // 症状が出た時間
   label: string;     // 症状の短い説明（例: 動悸・息苦しさ）
   memo?: string | null; // 詳細メモ（任意）
+  forDoctor?: boolean;
 };
 
 export type SerenoteNote = {
@@ -62,6 +63,7 @@ export type SerenoteEntry = {
   medications?: SerenoteMedicationLog[];
   symptoms?: SerenoteSymptomLog[];
   notes?: SerenoteNote[];
+
 
   // ⭐ Today 用タイムラインをそのまま保存しておくフィールド
   timelineEvents?: TimelineEvent[];

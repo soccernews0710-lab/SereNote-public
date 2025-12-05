@@ -315,17 +315,36 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
     showSavedFlash();
   };
 
-  // ⭐ 症状: 新規 or 編集
+  // ⭐ 症状: 新規 or 編集（🆕 forDoctor をちゃんと保持）
   const handleAddOrUpdateSymptom = (
     event: TimelineEvent,
     mode: SymptomModalMode
   ) => {
     setEvents(prev => {
       if (mode === 'edit') {
-        return prev.map(e => (e.id === event.id ? event : e));
+        return prev.map(e =>
+          e.id === event.id
+            ? {
+                // 既存の値をベースにマージすることで
+                // forDoctor を含めたフィールドを落とさない
+                ...e,
+                ...event,
+              }
+            : e
+        );
       }
-      return [...prev, event];
+
+      // 新規の場合も forDoctor を明示的に持たせて保存
+      const newSymptom: TimelineEvent = {
+        ...event,
+        type: 'symptom',
+        planned: event.planned ?? false,
+        forDoctor: event.forDoctor ?? false,
+      };
+
+      return [...prev, newSymptom];
     });
+
     setEditingSymptomEvent(null);
     showSavedFlash();
   };
@@ -634,6 +653,8 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         setMemoText={symptomModal.setMemoText}
         timeText={symptomModal.timeText}
         setTimeText={symptomModal.setTimeText}
+        forDoctor={symptomModal.forDoctor}
+        setForDoctor={symptomModal.setForDoctor}
       />
     </SafeAreaView>
   );
@@ -782,3 +803,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+// ファイルのいちばん下に追加
+export default DayEntryScreen;

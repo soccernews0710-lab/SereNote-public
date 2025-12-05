@@ -54,6 +54,80 @@ export default function UserSettingsMenuScreen() {
             項目
           </Text>
 
+          {/* サブスクリプション / SereNote Pro */}
+          <TouchableOpacity
+            style={[
+              styles.itemCard,
+              { backgroundColor: theme.colors.card },
+            ]}
+            onPress={() =>
+              router.push('/settings/user-settings-subscription')
+            }
+          >
+            <View style={styles.itemTextBox}>
+              <Text
+                style={[
+                  styles.itemTitle,
+                  { color: theme.colors.textMain },
+                ]}
+              >
+                サブスクリプション（SereNote Pro）
+              </Text>
+              <Text
+                style={[
+                  styles.itemSubtitle,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                現在のプラン確認・Proへの切り替え（将来的に課金画面と連動）を行います。
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.itemChevron,
+                { color: theme.colors.textSub },
+              ]}
+            >
+              ›
+            </Text>
+          </TouchableOpacity>
+
+          {/* プライバシーロック */}
+            <TouchableOpacity
+            style={[
+                styles.itemCard,
+                { backgroundColor: theme.colors.card },
+            ]}
+            onPress={() => router.push('/settings/user-settings-privacy-lock')}
+            >
+            <View style={styles.itemTextBox}>
+                <Text
+                style={[
+                    styles.itemTitle,
+                    { color: theme.colors.textMain },
+                ]}
+                >
+                プライバシーロック
+                </Text>
+                <Text
+                style={[
+                    styles.itemSubtitle,
+                    { color: theme.colors.textSub },
+                ]}
+                >
+                FaceID / PIN でアプリを保護します。
+                </Text>
+            </View>
+            <Text
+                style={[
+                styles.itemChevron,
+                { color: theme.colors.textSub },
+                ]}
+            >
+                ›
+            </Text>
+            </TouchableOpacity>
+
           {/* テーマカラー */}
           <TouchableOpacity
             style={[

@@ -1,5 +1,7 @@
 // app/(tabs)/stats.tsx
+import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, {
   useCallback,
   useEffect,
@@ -9,9 +11,11 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   GestureResponderEvent,
   LayoutChangeEvent,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -29,7 +33,7 @@ import {
 } from 'react-native-svg';
 
 import { getTodayKey } from '../../hooks/useDayEvents';
-import { loadAllEntries } from '../../src/storage/serenoteStorage';
+import { loadAllEntries, saveAllEntries } from '../../src/storage/serenoteStorage';
 import { useTheme } from '../../src/theme/useTheme';
 import type {
   DateKey,
@@ -64,10 +68,19 @@ type ChartPoint = {
   value: number;
 };
 
+// 診察用に集める症状
+export type DoctorSymptomItem = {
+  id: string;
+  date: DateKey;
+  time?: string;
+  label: string;
+  memo?: string;
+  forDoctor?: boolean;
+};
+
 // ========= 日付ユーティリティ =========
 
 function formatDateLabel(dateKey: DateKey): string {
-  // ひとまず "YYYY-MM-DD" のまま
   return dateKey;
 }
 
@@ -117,10 +130,6 @@ function parseHHMMToMinutes(text: string | undefined | null): number | null {
 
 /**
  * 1日あたりの睡眠時間（分）を求める
- * - ベースロジック:
- *   - 当日エントリの sleep.totalMinutes があればそれを採用
- *   - ない場合:
- *       前日 or 当日の bedTime と 当日の wakeTime から計算
  */
 function calcDailySleepMinutes(
   date: DateKey,
@@ -129,7 +138,6 @@ function calcDailySleepMinutes(
   const entry = allEntries[date];
   if (!entry) return null;
 
-  // totalMinutes がすでに計算済みならそれを使う
   const explicitTotal = entry.sleep?.totalMinutes;
   if (typeof explicitTotal === 'number') return explicitTotal;
 
@@ -142,7 +150,6 @@ function calcDailySleepMinutes(
 
   if (bed == null || todayWake == null) return null;
 
-  // 24時間をまたいだ場合も考慮
   let diff = todayWake - bed;
   if (diff <= 0) diff += 24 * 60;
 
@@ -151,8 +158,6 @@ function calcDailySleepMinutes(
 
 function sleepMinutesToQualityTag(totalMinutes: number | null): SleepQualityTag {
   if (totalMinutes == null) return 'データなし';
-
-  // 仮: <6h, 6〜9h, >9h
   if (totalMinutes < 360) return '少なめ';
   if (totalMinutes <= 540) return 'ちょうど良い';
   return '多め';
@@ -160,10 +165,6 @@ function sleepMinutesToQualityTag(totalMinutes: number | null): SleepQualityTag 
 
 // ========= 気分 / メモ / 薬 集計 =========
 
-/**
- * その日の「気分イベント」たちから 1〜5 の平均値を出す
- * entry.mood.value は 1〜5 がそのまま入っている想定
- */
 function calcDailyMoodAverage(
   entry: SerenoteEntry | undefined
 ): {
@@ -324,12 +325,43 @@ function buildChartPoints(
     const v = selector(row);
     if (v == null) return;
     pts.push({
-      index: pts.length, // 欠損行は飛ばして詰める
+      index: pts.length,
       label: row.dateLabel,
       value: v,
     });
   });
   return pts;
+}
+
+// ========= 「診察で話したい」症状抽出 =========
+
+function collectDoctorSymptoms(all: SerenoteEntryMap): DoctorSymptomItem[] {
+  const items: DoctorSymptomItem[] = [];
+
+  Object.entries(all).forEach(([date, entry]) => {
+    const symptoms: any[] | undefined = (entry as any).symptoms;
+    if (!symptoms || symptoms.length === 0) return;
+
+    symptoms.forEach(sym => {
+      if (sym.forDoctor) {
+        items.push({
+          id: sym.id ?? `${date}_${sym.time ?? ''}_${sym.label}`,
+          date: date as DateKey,
+          time: sym.time,
+          label: sym.label,
+          memo: sym.memo,
+          forDoctor: sym.forDoctor,
+        });
+      }
+    });
+  });
+
+  return items.sort((a, b) => {
+    if (a.date === b.date) {
+      return (b.time ?? '').localeCompare(a.time ?? '');
+    }
+    return b.date.localeCompare(a.date);
+  });
 }
 
 // ========= ラインチャートコンポーネント =========
@@ -611,6 +643,12 @@ export default function StatsScreen() {
     [rows]
   );
 
+  // 🆕 診察用メモ一覧
+  const doctorSymptoms = useMemo(
+    () => collectDoctorSymptoms(allEntries),
+    [allEntries]
+  );
+
   const sleepYMax =
     sleepPoints.length > 0
       ? Math.max(10, Math.ceil(Math.max(...sleepPoints.map(p => p.value)) + 1))
@@ -632,6 +670,110 @@ export default function StatsScreen() {
       : period === '30d'
       ? '直近 30 日'
       : '直近 90 日';
+
+  // ===== 診察用メモを .txt でエクスポート =====
+  const handleExportDoctorSymptoms = async () => {
+    if (doctorSymptoms.length === 0) return;
+
+    const lines: string[] = [];
+
+    doctorSymptoms.forEach(item => {
+      lines.push(
+        `■ ${item.date}${item.time ? ` ${item.time}` : ''}  ${item.label}`
+      );
+      if (item.memo) {
+        lines.push(`  メモ: ${item.memo}`);
+      }
+      lines.push('');
+    });
+
+    const text = lines.join('\n');
+
+    try {
+      const fileName = `serenote-doctor-notes-${Date.now()}.txt`;
+
+      const baseDir: string | null =
+        (FileSystem as any).cacheDirectory ??
+        (FileSystem as any).documentDirectory ??
+        null;
+
+      if (!baseDir) {
+        console.warn('No suitable directory for export');
+        return;
+      }
+
+      const fileUri = baseDir + fileName;
+
+      await FileSystem.writeAsStringAsync(fileUri, text, {
+        encoding: ((FileSystem as any).EncodingType?.UTF8 ?? 'utf8') as any,
+      });
+
+      if (Platform.OS === 'ios' || Platform.OS === 'android') {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/plain',
+            dialogTitle: '診察用メモを共有',
+          });
+        } else {
+          console.log('Sharing not available on this platform');
+        }
+      } else {
+        console.log('File written to', fileUri);
+      }
+    } catch (e) {
+      console.warn('Export doctor symptoms failed', e);
+      Alert.alert('エラー', 'テキストの出力に失敗しました。もう一度お試しください。');
+    }
+  };
+
+  // ===== 診察用メモの forDoctor フラグを一括リセット =====
+  const handleResetDoctorSymptoms = () => {
+    if (doctorSymptoms.length === 0) return;
+
+    Alert.alert(
+      '診察メモをリセット',
+      '「診察で話したい」にチェックしたフラグをすべて外します。よろしいですか？',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: 'リセット',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const updated: SerenoteEntryMap = {};
+
+              Object.entries(allEntries).forEach(([date, entry]) => {
+                const symptoms: any[] | undefined = (entry as any).symptoms;
+                if (!symptoms || symptoms.length === 0) {
+                  updated[date as DateKey] = entry;
+                  return;
+                }
+
+                const newSymptoms = symptoms.map(sym =>
+                  sym.forDoctor ? { ...sym, forDoctor: false } : sym
+                );
+
+                updated[date as DateKey] = {
+                  ...entry,
+                  symptoms: newSymptoms,
+                } as SerenoteEntry;
+              });
+
+              await saveAllEntries(updated);
+              setAllEntries(updated);
+            } catch (e) {
+              console.warn('Failed to reset doctor symptoms', e);
+              Alert.alert(
+                'エラー',
+                'リセットに失敗しました。もう一度お試しください。'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
 
   if (loading) {
     return (
@@ -1048,6 +1190,134 @@ export default function StatsScreen() {
             </View>
           </View>
         </View>
+
+        {/* === 🆕 診察で話したい症状一覧 === */}
+        <View
+          style={[
+            styles.sectionBox,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.borderSoft,
+            },
+          ]}
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              marginBottom: 8,
+              alignItems: 'center',
+            }}
+          >
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: theme.colors.textMain },
+              ]}
+            >
+              診察で話したい症状メモ
+            </Text>
+
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                onPress={handleExportDoctorSymptoms}
+                disabled={doctorSymptoms.length === 0}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: theme.colors.borderSoft,
+                  opacity: doctorSymptoms.length === 0 ? 0.5 : 1,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: theme.colors.textSub,
+                  }}
+                >
+                  ↑ エクスポート
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleResetDoctorSymptoms}
+                disabled={doctorSymptoms.length === 0}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: theme.colors.borderSoft,
+                  opacity: doctorSymptoms.length === 0 ? 0.5 : 1,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: theme.colors.textSub,
+                  }}
+                >
+                  ✓ リセット
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {doctorSymptoms.length === 0 ? (
+            <Text
+              style={{
+                fontSize: 12,
+                color: theme.colors.textSub,
+              }}
+            >
+              「症状」追加モーダルで「診察で話したい」にチェックすると、
+              ここに一覧で表示されます。
+            </Text>
+          ) : (
+            doctorSymptoms.map(item => (
+              <View
+                key={item.id}
+                style={[
+                  styles.symptomCard,
+                  { borderBottomColor: theme.colors.borderSoft },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: theme.colors.textSub,
+                    marginBottom: 2,
+                  }}
+                >
+                  {item.date}
+                  {item.time ? `  ${item.time}` : ''}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: '600',
+                    color: theme.colors.textMain,
+                  }}
+                >
+                  {item.label}
+                </Text>
+                {item.memo ? (
+                  <Text
+                    style={{
+                      marginTop: 2,
+                      fontSize: 12,
+                      color: theme.colors.textSub,
+                    }}
+                  >
+                    {item.memo}
+                  </Text>
+                ) : null}
+              </View>
+            ))
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -1179,5 +1449,22 @@ const styles = StyleSheet.create({
   chartTooltipValue: {
     fontSize: 13,
     fontWeight: '600',
+  },
+
+  sectionBox: {
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 20,
+    borderWidth: 1,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  symptomCard: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    marginBottom: 8,
   },
 });

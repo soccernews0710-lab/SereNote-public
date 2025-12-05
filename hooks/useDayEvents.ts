@@ -138,6 +138,7 @@ function buildEntryFromEvents(
     time: e.time ?? '00:00',
     label: e.label ?? '症状',
     memo: e.memo ?? null,
+    forDoctor: e.forDoctor ?? false,
   }));
 
   // --- notes ---

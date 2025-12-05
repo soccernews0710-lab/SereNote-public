@@ -41,6 +41,9 @@ export type TimelineEvent = {
   medTimeSlot?: MedTimeSlot;  // 朝/夜/頓服 など
   dosageText?: string;        // 「1錠 / 5mg」など
 
+  // 🩺 診察で話したいフラグ（主に symptom イベントで使用）
+  forDoctor?: boolean;
+
   // 共通メモ
   memo?: string;
 };
@@ -59,6 +62,7 @@ export type MedDefinition = {
   schedule: MedScheduleKey;
   name: string;
   defaultDosage?: string;
+  // ※ ここから forDoctor は削除（症状イベント側で持つため）
 };
 
 // 🔔 通知用の時刻（朝・夜）
