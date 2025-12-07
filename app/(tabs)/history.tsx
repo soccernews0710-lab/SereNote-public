@@ -1,6 +1,6 @@
 // app/(tabs)/history.tsx
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -182,11 +182,14 @@ const HistoryRow: React.FC<HistoryRowProps> = ({
   );
 };
 
+type HistoryFilter = 'all' | 'bad-mood' | 'has-symptoms';
+
 export default function HistoryScreen() {
   const { theme } = useTheme();
   const [entries, setEntries] = useState<SerenoteEntry[]>([]);
   const [entryMap, setEntryMap] = useState<SerenoteEntryMap>({});
   const [loading, setLoading] = useState<boolean>(false);
+  const [filter, setFilter] = useState<HistoryFilter>('all');
   const router = useRouter();
 
   // タブにフォーカスされるたびに最新データをロード
@@ -228,6 +231,44 @@ export default function HistoryScreen() {
         cancelled = true;
       };
     }, [])
+  );
+
+  // フィルタ適用後の一覧
+  const filteredEntries = useMemo(() => {
+    if (filter === 'all') return entries;
+
+    if (filter === 'bad-mood') {
+      return entries.filter(entry => {
+        const v = entry.mood?.value;
+        return v === 1 || v === 2;
+      });
+    }
+
+    if (filter === 'has-symptoms') {
+      return entries.filter(entry => (entry.symptoms?.length ?? 0) > 0);
+    }
+
+    return entries;
+  }, [entries, filter]);
+
+  const renderFilterTabs = () => (
+    <View style={styles.filterRow}>
+      <FilterChip
+        label="すべて"
+        active={filter === 'all'}
+        onPress={() => setFilter('all')}
+      />
+      <FilterChip
+        label="つらい日"
+        active={filter === 'bad-mood'}
+        onPress={() => setFilter('bad-mood')}
+      />
+      <FilterChip
+        label="症状のある日"
+        active={filter === 'has-symptoms'}
+        onPress={() => setFilter('has-symptoms')}
+      />
+    </View>
   );
 
   return (
@@ -285,31 +326,100 @@ export default function HistoryScreen() {
             </Text>
           </View>
         ) : (
-          <FlatList
-            data={entries}
-            keyExtractor={item => item.date}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => {
-              const sleepLabel = getSleepSummaryForDate(
-                item.date,
-                entryMap
-              );
-              return (
-                <HistoryRow
-                  entry={item}
-                  sleepLabel={sleepLabel}
-                  onPress={() => {
-                    router.push(`/history/${item.date}`);
-                  }}
-                />
-              );
-            }}
-          />
+          <>
+            {/* フィルタタブ */}
+            {renderFilterTabs()}
+
+            {filteredEntries.length === 0 ? (
+              <View
+                style={[
+                  styles.noMatchBox,
+                  { backgroundColor: theme.colors.surfaceAlt },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.noMatchText,
+                    { color: theme.colors.textSub },
+                  ]}
+                >
+                  選択中の条件に該当する日がありません。
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredEntries}
+                keyExtractor={item => item.date}
+                contentContainerStyle={styles.listContent}
+                renderItem={({ item }) => {
+                  const sleepLabel = getSleepSummaryForDate(
+                    item.date,
+                    entryMap
+                  );
+                  return (
+                    <HistoryRow
+                      entry={item}
+                      sleepLabel={sleepLabel}
+                      onPress={() => {
+                        router.push(`/history/${item.date}`);
+                      }}
+                    />
+                  );
+                }}
+              />
+            )}
+          </>
         )}
       </View>
     </SafeAreaView>
   );
 }
+
+// ---------------------
+// 小さなフィルタ Chip
+// ---------------------
+type FilterChipProps = {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+};
+
+const FilterChip: React.FC<FilterChipProps> = ({
+  label,
+  active,
+  onPress,
+}) => {
+  const { theme } = useTheme();
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.filterChip,
+        {
+          backgroundColor: active
+            ? theme.colors.primary
+            : theme.colors.surfaceAlt,
+          borderColor: active
+            ? 'transparent'
+            : theme.colors.borderSoft,
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <Text
+        style={[
+          styles.filterChipText,
+          {
+            color: active ? '#FFFFFF' : theme.colors.textSub,
+          },
+        ]}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+};
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -333,8 +443,27 @@ const styles = StyleSheet.create({
   },
   screenSubtitle: {
     fontSize: 13,
-    marginBottom: 12,
+    marginBottom: 8,
   },
+
+  // フィルタ
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
   listContent: {
     paddingVertical: 4,
     gap: 8,
@@ -368,6 +497,7 @@ const styles = StyleSheet.create({
   rowSubText: {
     fontSize: 12,
   },
+
   emptyBox: {
     marginTop: 40,
     padding: 16,
@@ -380,5 +510,14 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
+  },
+
+  noMatchBox: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 10,
+  },
+  noMatchText: {
+    fontSize: 12,
   },
 });
