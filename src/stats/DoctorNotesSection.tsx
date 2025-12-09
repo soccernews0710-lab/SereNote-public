@@ -1,14 +1,14 @@
 // app/stats/DoctorNotesSection.tsx
 import React from 'react';
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
+import type { DoctorSymptomItem } from '../../src/stats/statsLogic';
 import { useTheme } from '../../src/theme/useTheme';
-import type { DoctorSymptomItem } from './statsLogic';
 
 type Props = {
   doctorSymptoms: DoctorSymptomItem[];
@@ -22,7 +22,6 @@ export const DoctorNotesSection: React.FC<Props> = ({
   onReset,
 }) => {
   const { theme } = useTheme();
-
   const disabled = doctorSymptoms.length === 0;
 
   return (
@@ -30,43 +29,61 @@ export const DoctorNotesSection: React.FC<Props> = ({
       style={[
         styles.sectionBox,
         {
-          backgroundColor: theme.colors.surface,
           borderColor: theme.colors.borderSoft,
+          backgroundColor: theme.colors.surfaceAlt,
         },
       ]}
     >
+      {/* 見出し + ボタン */}
       <View style={styles.headerRow}>
-        <Text
-          style={[
-            styles.sectionTitle,
-            { color: theme.colors.textMain },
-          ]}
-        >
-          診察で話したい症状メモ
-        </Text>
+        <View>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            診察で話したい症状メモ
+          </Text>
+          <Text
+            style={[
+              styles.sectionSub,
+              { color: theme.colors.textSub },
+            ]}
+          >
+            「診察で話したい」にチェックした症状がここにまとまります
+          </Text>
+        </View>
 
         <View style={styles.actionsRow}>
+          {/* エクスポート */}
           <TouchableOpacity
             onPress={onExport}
             disabled={disabled}
             style={[
               styles.actionButton,
               {
-                borderColor: theme.colors.borderSoft,
-                opacity: disabled ? 0.5 : 1,
+                borderColor: disabled
+                  ? theme.colors.borderSoft
+                  : theme.colors.primary,
+                backgroundColor: disabled
+                  ? 'transparent'
+                  : theme.colors.primary,
               },
             ]}
+            activeOpacity={0.8}
           >
             <Text
               style={[
                 styles.actionText,
-                { color: theme.colors.textSub },
+                { color: disabled ? theme.colors.textSub : '#FFFFFF' },
               ]}
             >
               ↑ エクスポート
             </Text>
           </TouchableOpacity>
 
+          {/* リセット */}
           <TouchableOpacity
             onPress={onReset}
             disabled={disabled}
@@ -74,9 +91,11 @@ export const DoctorNotesSection: React.FC<Props> = ({
               styles.actionButton,
               {
                 borderColor: theme.colors.borderSoft,
+                backgroundColor: 'transparent',
                 opacity: disabled ? 0.5 : 1,
               },
             ]}
+            activeOpacity={0.8}
           >
             <Text
               style={[
@@ -90,6 +109,7 @@ export const DoctorNotesSection: React.FC<Props> = ({
         </View>
       </View>
 
+      {/* 本文エリア */}
       {doctorSymptoms.length === 0 ? (
         <Text
           style={[
@@ -160,6 +180,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  sectionSub: {
+    marginTop: 2,
+    fontSize: 11,
+  },
   actionsRow: {
     flexDirection: 'row',
     gap: 8,
@@ -172,14 +196,17 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 11,
+    fontWeight: '500',
   },
   emptyText: {
     fontSize: 12,
+    marginTop: 6,
+    lineHeight: 18,
   },
   symptomCard: {
     paddingVertical: 8,
     borderBottomWidth: 1,
-    marginBottom: 8,
+    marginTop: 6,
   },
   dateText: {
     fontSize: 12,

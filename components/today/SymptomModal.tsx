@@ -1,12 +1,12 @@
 // components/today/SymptomModal.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { useTheme } from '../../src/theme/useTheme';
@@ -14,11 +14,48 @@ import { TimePicker } from '../common/TimePicker';
 
 export type SymptomModalMode = 'create' | 'edit';
 
+/**
+ * 症状の内部タグ
+ * - 将来の統計・集計用（今は使わなくてもOK）
+ */
+export type SymptomTag =
+  | 'anxiety'      // 不安が強い
+  | 'irritability' // イライラする
+  | 'low_mood'     // 気分が落ち込む
+  | 'insomnia'     // 眠れない / 浅い
+  | 'low_appetite' // 食欲がない
+  | 'headache'     // 頭痛がある
+  | 'fatigue'      // 体がだるい
+  | 'restless';    // そわそわする
+
+type SymptomPreset = {
+  label: string;
+  tag: SymptomTag;
+};
+
 type Props = {
   visible: boolean;
   mode: SymptomModalMode;
   onRequestClose: () => void;
+
+  /**
+   * 従来の「保存ボタン」用
+   * - これは今まで通り、外側の state（labelText / memoText など）を読んで保存、でOK
+   */
   onConfirm: () => void;
+
+  /**
+   * 🆕 プリセットの長押しなどで「即保存」したいとき用
+   * - 引数で完全なペイロードを渡すので、state更新のタイムラグを回避できる
+   * - 未使用なら省略可
+   */
+  onQuickPresetConfirm?: (payload: {
+    label: string;
+    memo: string;
+    time: string;
+    forDoctor: boolean;
+    tag?: SymptomTag;
+  }) => void;
 
   labelText: string;
   setLabelText: (text: string) => void;
@@ -29,28 +66,65 @@ type Props = {
   timeText: string;
   setTimeText: (text: string) => void;
 
-  // 🆕 診察で話したいフラグ
+  // 診察で話したいフラグ
   forDoctor: boolean;
   setForDoctor: (value: boolean) => void;
 };
 
-// 💡 よく使う症状プリセット
-const SYMPTOM_PRESETS: string[] = [
-  '不安が強い',
-  'イライラする',
-  '気分が落ち込む',
-  '眠れない / 浅い',
-  '食欲がない',
-  '頭痛がある',
-  '体がだるい',
-  'そわそわする',
+// 💡 よく使う症状プリセット（ラベル + 内部タグ）
+const SYMPTOM_PRESETS: SymptomPreset[] = [
+  { label: '不安が強い',     tag: 'anxiety' },
+  { label: 'イライラする',   tag: 'irritability' },
+  { label: '気分が落ち込む', tag: 'low_mood' },
+  { label: '眠れない / 浅い', tag: 'insomnia' },
+  { label: '食欲がない',     tag: 'low_appetite' },
+  { label: '頭痛がある',     tag: 'headache' },
+  { label: '体がだるい',     tag: 'fatigue' },
+  { label: 'そわそわする',   tag: 'restless' },
 ];
+
+/**
+ * 現在の labelText を「 / 」区切りでトークン化して配列にする
+ * 例: "不安が強い / 頭痛がある" → ["不安が強い", "頭痛がある"]
+ */
+function splitLabelTokens(labelText: string): string[] {
+  return labelText
+    .split('/')
+    .map(t => t.trim())
+    .filter(Boolean);
+}
+
+/**
+ * プリセットをタップしたときの新しい labelText を返す
+ * - 未選択 → 追加
+ * - 選択済み → 削除
+ * - 1つもなければ、その1つだけ
+ */
+function togglePresetInLabel(labelText: string, presetLabel: string): string {
+  const tokens = splitLabelTokens(labelText);
+  const exists = tokens.includes(presetLabel);
+
+  if (!labelText.trim()) {
+    // 何もなければそのまま入れる
+    return presetLabel;
+  }
+
+  if (exists) {
+    // すでに含まれていれば削除
+    const nextTokens = tokens.filter(t => t !== presetLabel);
+    return nextTokens.join(' / ');
+  } else {
+    // 含まれていなければ追加
+    return [...tokens, presetLabel].join(' / ');
+  }
+}
 
 export default function SymptomModal({
   visible,
   mode,
   onRequestClose,
   onConfirm,
+  onQuickPresetConfirm,
   labelText,
   setLabelText,
   memoText,
@@ -63,6 +137,15 @@ export default function SymptomModal({
   const { theme } = useTheme();
 
   const title = mode === 'edit' ? '症状を編集' : '症状を追加';
+
+  // 現在選択されているプリセット（複数）の判定用
+  const activeTokens = useMemo(
+    () => splitLabelTokens(labelText),
+    [labelText],
+  );
+
+  const isPresetActive = (presetLabel: string) =>
+    activeTokens.includes(presetLabel);
 
   return (
     <Modal
@@ -143,14 +226,46 @@ export default function SymptomModal({
               { color: theme.colors.textSub },
             ]}
           >
-            よく使う症状（タップで入力）
+            よく使う症状
+            {' '}
+            <Text style={{ fontWeight: '500' }}>
+              （タップで追加 / もう一度タップで解除）
+            </Text>
+            {onQuickPresetConfirm && (
+              <Text style={{ fontSize: 10 }}>
+                {'  ※長押しで即保存'}
+              </Text>
+            )}
           </Text>
           <View style={styles.presetsWrap}>
             {SYMPTOM_PRESETS.map(preset => {
-              const active = labelText === preset;
+              const active = isPresetActive(preset.label);
+
+              const handlePress = () => {
+                const next = togglePresetInLabel(labelText, preset.label);
+                setLabelText(next);
+              };
+
+              const handleLongPress = () => {
+                if (!onQuickPresetConfirm) return;
+
+                // 即保存用：このプリセット1つだけをラベルとして保存する
+                onQuickPresetConfirm({
+                  label: preset.label,
+                  memo: memoText,
+                  time: timeText,
+                  forDoctor,
+                  tag: preset.tag,
+                });
+
+                // UI上も一応更新しておく（次に開いたとき用）
+                setLabelText(preset.label);
+                onRequestClose();
+              };
+
               return (
                 <TouchableOpacity
-                  key={preset}
+                  key={preset.label}
                   style={[
                     styles.presetChip,
                     {
@@ -162,7 +277,10 @@ export default function SymptomModal({
                         : theme.colors.surfaceAlt,
                     },
                   ]}
-                  onPress={() => setLabelText(preset)}
+                  onPress={handlePress}
+                  onLongPress={handleLongPress}
+                  delayLongPress={250}
+                  activeOpacity={0.8}
                 >
                   <Text
                     style={[
@@ -174,14 +292,14 @@ export default function SymptomModal({
                       },
                     ]}
                   >
-                    {preset}
+                    {preset.label}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          {/* 🆕 診察で話したいフラグ */}
+          {/* 診察で話したいフラグ */}
           <TouchableOpacity
             style={[
               styles.doctorRow,

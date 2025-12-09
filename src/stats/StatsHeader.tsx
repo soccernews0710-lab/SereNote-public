@@ -2,8 +2,8 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import type { StatsPeriod } from '../../src/stats/statsLogic';
 import { useTheme } from '../../src/theme/useTheme';
-import type { StatsPeriod } from './statsLogic';
 
 type Props = {
   period: StatsPeriod;

@@ -8,6 +8,7 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
+import { Alert } from 'react-native';
 
 export type SubscriptionPlan = 'free' | 'pro';
 
@@ -15,12 +16,16 @@ type SubscriptionContextValue = {
   plan: SubscriptionPlan;
   isPro: boolean;
   setPlan: (plan: SubscriptionPlan) => void;
-};
 
-const SubscriptionContext = createContext<SubscriptionContextValue | null>(null);
+  // ⭐ Pro への誘導用（課金画面ができたらここで遷移に差し替え）
+  openProPaywall: () => void;
+};
 
 // 他とかぶらないようにそれっぽいキー名
 const STORAGE_KEY = 'serenote_subscription_plan_v1';
+
+const SubscriptionContext =
+  createContext<SubscriptionContextValue | null>(null);
 
 export const SubscriptionProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -58,11 +63,25 @@ export const SubscriptionProvider: React.FC<{ children: ReactNode }> = ({
     });
   };
 
+  // ⭐ Pro への誘導：今は Alert だけ。あとで課金画面に差し替えればOK
+  const openProPaywall = () => {
+    Alert.alert(
+      'SereNote Pro',
+      'SereNote Pro では「行動 × 気分」の詳しい統計を確認できます。\n\n' +
+        '・行動時間の合計 / 1日平均\n' +
+        '・気分と行動の関連性\n' +
+        '・診察に役立つ振り返り\n\n' +
+        '※ 課金画面と連携するまでは、このお知らせのみ表示されます。',
+      [{ text: 'OK' }]
+    );
+  };
+
   const value = useMemo(
     () => ({
       plan,
       isPro: plan === 'pro',
       setPlan,
+      openProPaywall,
     }),
     [plan]
   );

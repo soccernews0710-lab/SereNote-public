@@ -1,21 +1,21 @@
 // app/stats/LineChart.tsx
 import React, {
-    useEffect,
-    useRef,
-    useState,
+  useEffect,
+  useRef,
+  useState,
 } from 'react';
 import {
-    Animated,
-    GestureResponderEvent,
-    LayoutChangeEvent,
-    StyleSheet,
-    Text,
-    View,
+  Animated,
+  GestureResponderEvent,
+  LayoutChangeEvent,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
+import type { ChartPoint } from '../../src/stats/statsLogic';
 import { useTheme } from '../../src/theme/useTheme';
-import type { ChartPoint } from './statsLogic';
 
 type LineChartProps = {
   color: string;

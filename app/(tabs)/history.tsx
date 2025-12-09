@@ -24,7 +24,7 @@ import type {
  * 日付文字列 "YYYY-MM-DD" を、そのまま or 将来的にフォーマットしやすいように
  */
 function formatDateLabel(date: DateKey): string {
-  // ひとまずそのまま表示（必要になったら「2025-12-01（月）」形式に拡張してOK）
+  // 必要になったら「2025-12-01（月）」形式に拡張してOK
   return date;
 }
 
@@ -108,6 +108,63 @@ function getNotesSymptomSummary(entry: SerenoteEntry): string {
   return `メモ / 症状: ${total} 件`;
 }
 
+/**
+ * つらい日・症状の多い日をハイライトするためのスタイル計算
+ */
+function getHighlightColors(entry: SerenoteEntry) {
+  const mood = entry.mood?.value ?? null;
+  const symptomCount = entry.symptoms?.length ?? 0;
+
+  const isBadMood = mood === 1 || mood === 2;
+  const hasSymptoms = symptomCount > 0;
+
+  // デフォルト（ハイライトなし）
+  if (!isBadMood && !hasSymptoms) {
+    return {
+      backgroundColor: null as string | null,
+      borderColor: null as string | null,
+    };
+  }
+
+  // 気分がつらくて、かつ症状もある → 強めの赤系
+  if (isBadMood && hasSymptoms) {
+    return {
+      backgroundColor: 'rgba(248, 113, 113, 0.16)', // 赤み強め
+      borderColor: 'rgba(239, 68, 68, 0.7)',
+    };
+  }
+
+  // 気分だけつらい → 少し淡い赤
+  if (isBadMood) {
+    return {
+      backgroundColor: 'rgba(248, 113, 113, 0.12)',
+      borderColor: 'rgba(248, 113, 113, 0.5)',
+    };
+  }
+
+  // 症状だけある → ほんのり紫
+  return {
+    backgroundColor: 'rgba(129, 140, 248, 0.12)',
+    borderColor: 'rgba(129, 140, 248, 0.6)',
+  };
+}
+
+/**
+ * "YYYY-MM-DD" → "YYYY-MM" の月キーに変換
+ */
+function toMonthKey(date: DateKey): string {
+  return date.slice(0, 7); // "2025-12"
+}
+
+/**
+ * "YYYY-MM" → "2025年12月" みたいな表示用ラベル
+ */
+function formatMonthKeyLabel(monthKey: string): string {
+  const [y, m] = monthKey.split('-');
+  const monthNum = Number(m);
+  return `${y}年${monthNum}月`;
+}
+
 type HistoryRowProps = {
   entry: SerenoteEntry;
   sleepLabel: string;
@@ -121,13 +178,21 @@ const HistoryRow: React.FC<HistoryRowProps> = ({
 }) => {
   const { theme } = useTheme();
 
+  const { backgroundColor, borderColor } = getHighlightColors(entry);
+
+  const cardBackground =
+    backgroundColor ?? theme.colors.card;
+  const cardBorderColor =
+    borderColor ?? 'transparent';
+
   return (
     <TouchableOpacity
       style={[
         styles.rowCard,
         {
-          backgroundColor: theme.colors.card,
+          backgroundColor: cardBackground,
           shadowColor: '#000000',
+          borderColor: cardBorderColor,
         },
       ]}
       onPress={onPress}
@@ -189,7 +254,13 @@ export default function HistoryScreen() {
   const [entries, setEntries] = useState<SerenoteEntry[]>([]);
   const [entryMap, setEntryMap] = useState<SerenoteEntryMap>({});
   const [loading, setLoading] = useState<boolean>(false);
+
+  // A7: つらい日 / 症状あり フィルタ
   const [filter, setFilter] = useState<HistoryFilter>('all');
+
+  // A6: 月フィルタ（"all" なら全期間）
+  const [monthFilter, setMonthFilter] = useState<'all' | string>('all');
+
   const router = useRouter();
 
   // タブにフォーカスされるたびに最新データをロード
@@ -233,23 +304,44 @@ export default function HistoryScreen() {
     }, [])
   );
 
+  // 存在する月の一覧（新しい順）を作る
+  const monthKeys = useMemo(() => {
+    const set = new Set<string>();
+    entries.forEach(e => {
+      set.add(toMonthKey(e.date));
+    });
+    return Array.from(set).sort((a, b) =>
+      a < b ? 1 : a > b ? -1 : 0
+    );
+  }, [entries]);
+
   // フィルタ適用後の一覧
   const filteredEntries = useMemo(() => {
-    if (filter === 'all') return entries;
+    let base = entries;
+
+    // ① 月フィルタ
+    if (monthFilter !== 'all') {
+      base = base.filter(e => toMonthKey(e.date) === monthFilter);
+    }
+
+    // ② 状態フィルタ（つらい日 / 症状あり）
+    if (filter === 'all') return base;
 
     if (filter === 'bad-mood') {
-      return entries.filter(entry => {
+      return base.filter(entry => {
         const v = entry.mood?.value;
         return v === 1 || v === 2;
       });
     }
 
     if (filter === 'has-symptoms') {
-      return entries.filter(entry => (entry.symptoms?.length ?? 0) > 0);
+      return base.filter(
+        entry => (entry.symptoms?.length ?? 0) > 0
+      );
     }
 
-    return entries;
-  }, [entries, filter]);
+    return base;
+  }, [entries, filter, monthFilter]);
 
   const renderFilterTabs = () => (
     <View style={styles.filterRow}>
@@ -270,6 +362,28 @@ export default function HistoryScreen() {
       />
     </View>
   );
+
+  const renderMonthFilterTabs = () => {
+    if (entries.length === 0) return null;
+
+    return (
+      <View style={styles.monthFilterRow}>
+        <FilterChip
+          label="全期間"
+          active={monthFilter === 'all'}
+          onPress={() => setMonthFilter('all')}
+        />
+        {monthKeys.map(key => (
+          <FilterChip
+            key={key}
+            label={formatMonthKeyLabel(key)}
+            active={monthFilter === key}
+            onPress={() => setMonthFilter(key)}
+          />
+        ))}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView
@@ -327,7 +441,10 @@ export default function HistoryScreen() {
           </View>
         ) : (
           <>
-            {/* フィルタタブ */}
+            {/* 月フィルタタブ（全期間 / 各月） */}
+            {renderMonthFilterTabs()}
+
+            {/* 状態フィルタタブ（すべて / つらい日 / 症状あり） */}
             {renderFilterTabs()}
 
             {filteredEntries.length === 0 ? (
@@ -446,7 +563,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  // フィルタ
+  // 月フィルタ
+  monthFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 6,
+  },
+
+  // 状態フィルタ
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -476,6 +602,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowRadius: 4,
     elevation: 1,
+    borderWidth: 1,
   },
   rowHeader: {
     flexDirection: 'row',

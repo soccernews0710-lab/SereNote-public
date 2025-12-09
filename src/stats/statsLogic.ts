@@ -1,17 +1,21 @@
-// app/stats/statsLogic.ts
+// src/stats/statsLogic.ts
 import { getTodayKey } from '../../hooks/useDayEvents';
 import type {
-    DateKey,
-    SerenoteEntry,
-    SerenoteEntryMap,
-    SerenoteMoodValue,
-} from '../../src/types/serenote';
+  DateKey,
+  SerenoteEntry,
+  SerenoteEntryMap,
+  SerenoteMoodValue,
+} from '../types/serenote';
 
 // ========= 型 =========
 
 export type StatsPeriod = '7d' | '30d' | '90d';
 
-export type SleepQualityTag = 'データなし' | '少なめ' | 'ちょうど良い' | '多め';
+export type SleepQualityTag =
+  | 'データなし'
+  | '少なめ'
+  | 'ちょうど良い'
+  | '多め';
 
 export type StatsRow = {
   dateKey: DateKey;
@@ -23,6 +27,8 @@ export type StatsRow = {
   medsCount: number;
   notesCount: number;
   symptomsCount: number;
+  // 🆕 行動の合計時間（分）
+  activityMinutes: number;
 };
 
 export type ChartPoint = {
@@ -38,6 +44,15 @@ export type DoctorSymptomItem = {
   label: string;
   memo?: string;
   forDoctor?: boolean;
+};
+
+// 🆕 行動 × 気分 用のサマリー
+export type ActivityMoodEffect = {
+  hasActivityDays: number;
+  noActivityDays: number;
+  avgMoodWithActivity: number | null;
+  avgMoodWithoutActivity: number | null;
+  diff: number | null; // with - without
 };
 
 // ========= 日付ユーティリティ =========
@@ -78,7 +93,7 @@ function getDateRange(endDateKey: DateKey, days: number): DateKey[] {
   return list;
 }
 
-// ========= 睡眠関連 =========
+// ========= 共通：HH:MM → 分 =========
 
 function parseHHMMToMinutes(text: string | undefined | null): number | null {
   if (!text) return null;
@@ -90,6 +105,8 @@ function parseHHMMToMinutes(text: string | undefined | null): number | null {
   return h * 60 + min;
 }
 
+// ========= 睡眠関連 =========
+
 export function calcDailySleepMinutes(
   date: DateKey,
   allEntries: SerenoteEntryMap
@@ -97,10 +114,13 @@ export function calcDailySleepMinutes(
   const entry = allEntries[date];
   if (!entry) return null;
 
+  // あれば totalMinutes を使う
   const explicitTotal = (entry as any).sleep?.totalMinutes;
   if (typeof explicitTotal === 'number') return explicitTotal;
 
-  const todayWake = parseHHMMToMinutes((entry as any).sleep?.wakeTime ?? null);
+  const todayWake = parseHHMMToMinutes(
+    (entry as any).sleep?.wakeTime ?? null
+  );
 
   const prev = allEntries[getPrevDateKey(date)];
   const bedStr =
@@ -118,7 +138,9 @@ export function calcDailySleepMinutes(
   return diff;
 }
 
-export function sleepMinutesToQualityTag(totalMinutes: number | null): SleepQualityTag {
+export function sleepMinutesToQualityTag(
+  totalMinutes: number | null
+): SleepQualityTag {
   if (totalMinutes == null) return 'データなし';
   if (totalMinutes < 360) return '少なめ';
   if (totalMinutes <= 540) return 'ちょうど良い';
@@ -148,7 +170,9 @@ export function calcDailyMoodAverage(
   };
 }
 
-export function calcDailyMedsCount(entry: SerenoteEntry | undefined): number {
+export function calcDailyMedsCount(
+  entry: SerenoteEntry | undefined
+): number {
   if (!entry || !(entry as any).medications) return 0;
   return ((entry as any).medications as any[]).length;
 }
@@ -158,8 +182,45 @@ export function calcDailyNotesAndSymptomsCount(
 ): { notes: number; symptoms: number } {
   if (!entry) return { notes: 0, symptoms: 0 };
   const notes = ((entry as any).notes as any[] | undefined)?.length ?? 0;
-  const symptoms = ((entry as any).symptoms as any[] | undefined)?.length ?? 0;
+  const symptoms =
+    ((entry as any).symptoms as any[] | undefined)?.length ?? 0;
   return { notes, symptoms };
+}
+
+// 🆕 ========= 行動時間（分） =========
+// TimelineEvent の startTime / endTime / time を使って、
+// 1日の「行動イベント」の合計分数を出す。
+export function calcDailyActivityMinutes(
+  entry: SerenoteEntry | undefined
+): number {
+  if (!entry) return 0;
+
+  const events: any[] | undefined = (entry as any).timelineEvents;
+  if (!events || events.length === 0) return 0;
+
+  let total = 0;
+
+  events.forEach(ev => {
+    if (ev.type !== 'activity') return;
+
+    const startStr: string | undefined =
+      ev.startTime ?? ev.time ?? undefined;
+    const endStr: string | undefined = ev.endTime ?? undefined;
+
+    const start = parseHHMMToMinutes(startStr);
+    const end = parseHHMMToMinutes(endStr);
+
+    // end がない or パースできない場合は「まだ終了してない」とみなして無視
+    if (start == null || end == null) return;
+
+    let diff = end - start;
+    // 日付またぎはあまり想定しないので、0以下は無視してOK
+    if (diff <= 0) return;
+
+    total += diff;
+  });
+
+  return total;
 }
 
 // ========= StatsRow ビルド =========
@@ -179,6 +240,7 @@ export function buildStatsRowsForPeriod(
     const sleepMinutes = calcDailySleepMinutes(dateKey, allEntries);
     const medsCount = calcDailyMedsCount(entry);
     const { notes, symptoms } = calcDailyNotesAndSymptomsCount(entry);
+    const activityMinutes = calcDailyActivityMinutes(entry);
 
     return {
       dateKey,
@@ -190,6 +252,7 @@ export function buildStatsRowsForPeriod(
       medsCount,
       notesCount: notes,
       symptomsCount: symptoms,
+      activityMinutes,
     };
   });
 
@@ -276,6 +339,69 @@ export function calcNotesSummary(rows: StatsRow[]) {
   return { avgPerDay, daysWithAny };
 }
 
+// ⭐ 期間サマリー（A5 用）
+export function calcOverviewSummary(rows: StatsRow[]) {
+  const totalDays = rows.length;
+
+  const daysWithAnyRecord = rows.filter(r => {
+    const hasMood = r.moodAvg != null;
+    const hasSleep = r.sleepMinutes != null;
+    const hasMeds = r.medsCount > 0;
+    const hasNotes = r.notesCount > 0;
+    const hasSymptoms = r.symptomsCount > 0;
+    const hasActivity = r.activityMinutes > 0;
+    return (
+      hasMood ||
+      hasSleep ||
+      hasMeds ||
+      hasNotes ||
+      hasSymptoms ||
+      hasActivity
+    );
+  }).length;
+
+  const recordRate =
+    totalDays > 0 ? daysWithAnyRecord / totalDays : 0;
+
+  // 平均気分
+  const moodValues = rows
+    .map(r => r.moodAvg)
+    .filter((v): v is number => v != null);
+
+  let avgMoodScore: number | null = null;
+  let avgMoodLabel = '—';
+  if (moodValues.length > 0) {
+    const sum = moodValues.reduce((acc, v) => acc + v, 0);
+    avgMoodScore = sum / moodValues.length;
+
+    if (avgMoodScore < 1.5) avgMoodLabel = 'とてもつらい';
+    else if (avgMoodScore < 2.5) avgMoodLabel = 'つらい';
+    else if (avgMoodScore < 3.5) avgMoodLabel = 'ふつう';
+    else if (avgMoodScore < 4.5) avgMoodLabel = '少し良い';
+    else avgMoodLabel = 'とても良い';
+  }
+
+  // 平均睡眠時間（h）
+  const sleepValues = rows
+    .map(r => r.sleepMinutes)
+    .filter((v): v is number => v != null);
+
+  let avgSleepHours: number | null = null;
+  if (sleepValues.length > 0) {
+    const sum = sleepValues.reduce((acc, v) => acc + v, 0);
+    avgSleepHours = sum / sleepValues.length / 60;
+  }
+
+  return {
+    totalDays,
+    daysWithAnyRecord,
+    recordRate,
+    avgMoodScore,
+    avgMoodLabel,
+    avgSleepHours,
+  };
+}
+
 // ========= グラフ用ポイント =========
 
 export function buildChartPoints(
@@ -297,7 +423,9 @@ export function buildChartPoints(
 
 // ========= 「診察で話したい」症状抽出 =========
 
-export function collectDoctorSymptoms(all: SerenoteEntryMap): DoctorSymptomItem[] {
+export function collectDoctorSymptoms(
+  all: SerenoteEntryMap
+): DoctorSymptomItem[] {
   const items: DoctorSymptomItem[] = [];
 
   Object.entries(all).forEach(([date, entry]) => {
@@ -318,10 +446,51 @@ export function collectDoctorSymptoms(all: SerenoteEntryMap): DoctorSymptomItem[
     });
   });
 
+  // 新しい日付・時間順にソート
   return items.sort((a, b) => {
     if (a.date === b.date) {
       return (b.time ?? '').localeCompare(a.time ?? '');
     }
     return b.date.localeCompare(a.date);
   });
+}
+
+// ========= 行動 × 気分 サマリー =========
+
+export function calcActivityMoodEffect(
+  rows: StatsRow[]
+): ActivityMoodEffect {
+  const withActivity: number[] = [];
+  const withoutActivity: number[] = [];
+
+  rows.forEach(r => {
+    if (r.moodAvg == null) return; // 気分が入ってない日は除外
+
+    if (r.activityMinutes > 0) {
+      withActivity.push(r.moodAvg);
+    } else {
+      withoutActivity.push(r.moodAvg);
+    }
+  });
+
+  const avg = (vals: number[]): number | null =>
+    vals.length > 0
+      ? vals.reduce((acc, v) => acc + v, 0) / vals.length
+      : null;
+
+  const avgWith = avg(withActivity);
+  const avgWithout = avg(withoutActivity);
+
+  let diff: number | null = null;
+  if (avgWith != null && avgWithout != null) {
+    diff = avgWith - avgWithout;
+  }
+
+  return {
+    hasActivityDays: withActivity.length,
+    noActivityDays: withoutActivity.length,
+    avgMoodWithActivity: avgWith,
+    avgMoodWithoutActivity: avgWithout,
+    diff,
+  };
 }

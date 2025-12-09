@@ -1,5 +1,5 @@
 // app/(tabs)/stats.tsx
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy'; // ← legacy API を利用
 import { useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -14,34 +14,145 @@ import {
   View,
 } from 'react-native';
 
-import { loadAllEntries, saveAllEntries } from '../../src/storage/serenoteStorage';
+import { OverviewCard } from '../../src/stats/OverviewCard';
+
+import {
+  loadAllEntries,
+  saveAllEntries,
+} from '../../src/storage/serenoteStorage';
 import { useTheme } from '../../src/theme/useTheme';
 import type {
   DateKey,
   SerenoteEntry,
   SerenoteEntryMap,
 } from '../../src/types/serenote';
+import type { TimelineEvent } from '../../src/types/timeline';
 
-import { DoctorNotesSection } from '../stats/DoctorNotesSection';
-import { MedsCard } from '../stats/MedsCard';
-import { MoodCard } from '../stats/MoodCard';
-import { NotesCard } from '../stats/NotesCard';
-import { SleepCard } from '../stats/SleepCard';
-import { StatsHeader } from '../stats/StatsHeader';
+import { DoctorNotesSection } from '../../src/stats/DoctorNotesSection';
+import { ExportAllSection } from '../../src/stats/ExportAllSection';
+import { MedsCard } from '../../src/stats/MedsCard';
+import { MoodCard } from '../../src/stats/MoodCard';
+import { NotesCard } from '../../src/stats/NotesCard';
+import { SleepCard } from '../../src/stats/SleepCard';
+import { StatsHeader } from '../../src/stats/StatsHeader';
+// 🆕 行動時間カード
+import { ActivityCard } from '../../src/stats/ActivityCard';
+// 🆕 行動 × 気分カード（Pro 機能）
+import { ActivityMoodCard } from '../../src/stats/ActivityMoodCard';
+// 🆕 サブスク状態
+import { useSubscription } from '../../src/subscription/useSubscription';
+
 import {
   buildStatsRowsForPeriod,
   collectDoctorSymptoms,
-  type StatsPeriod
-} from '../stats/statsLogic';
+  type StatsPeriod,
+} from '../../src/stats/statsLogic';
 
 export default function StatsScreen() {
   const { theme } = useTheme();
+  const { isPro, openProPaywall } = useSubscription();
 
   const [allEntries, setAllEntries] = useState<SerenoteEntryMap>({});
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<StatsPeriod>('7d');
 
-  // 画面フォーカスごとにデータをロード
+  // ========= 共通ヘルパー =========
+
+  // 保存ディレクトリを解決（documentDirectory → cacheDirectory の順）
+  const resolveBaseDir = () =>
+    FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? null;
+
+  // CSV 用のエスケープ
+  const escapeCsv = (v: string) => `"${v.replace(/"/g, '""')}"`;
+
+  // SerenoteEntryMap → CSV テキスト
+  const buildCsvFromEntries = (entries: SerenoteEntryMap): string => {
+    const header = [
+      'date',
+      'type',
+      'time',
+      'label_or_text',
+      'memo',
+      'extra',
+    ]
+      .map(escapeCsv)
+      .join(',');
+
+    const lines: string[] = [header];
+
+    const sortedDates = Object.keys(entries).sort();
+
+    sortedDates.forEach(dateKey => {
+      const entry = entries[dateKey as DateKey] as SerenoteEntry;
+      const events: TimelineEvent[] =
+        (entry as any).timelineEvents ?? [];
+
+      events.forEach(ev => {
+        const label = ev.label ?? '';
+        const memo = ev.memo ?? '';
+        let extra = '';
+
+        if (ev.type === 'mood') {
+          // 気分は数値も残しておく
+          extra = `moodValue:${(ev as any).moodValue ?? ''}`;
+        } else if (ev.type === 'med') {
+          const slot = (ev as any).medTimeSlot;
+          const medId = (ev as any).medId;
+          const dosage = (ev as any).dosageText;
+          extra = [
+            slot && `slot:${slot}`,
+            medId && `medId:${medId}`,
+            dosage && `dose:${dosage}`,
+          ]
+            .filter(Boolean)
+            .join(' | ');
+        } else if (ev.type === 'symptom') {
+          if ((ev as any).forDoctor) {
+            extra = 'forDoctor:true';
+          }
+        }
+
+        lines.push(
+          [
+            dateKey,
+            ev.type,
+            ev.time ?? '',
+            label,
+            memo,
+            extra,
+          ]
+            .map(escapeCsv)
+            .join(',')
+        );
+      });
+    });
+
+    return lines.join('\n');
+  };
+
+  // ファイルを共有 or パス表示
+  const shareFile = async (
+    fileUri: string,
+    mimeType: string,
+    dialogTitle: string
+  ) => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType,
+          dialogTitle,
+        });
+      } else {
+        Alert.alert('保存完了', `ファイルを保存しました:\n${fileUri}`);
+      }
+    } else {
+      console.log('File written to', fileUri);
+    }
+  };
+
+  // ========= データ読込 =========
+
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
@@ -89,15 +200,15 @@ export default function StatsScreen() {
       ? '直近 30 日'
       : '直近 90 日';
 
-  // ===== 診察用メモを .txt でエクスポート =====
+  // ========= 1) 診察用メモ .txt エクスポート =========
+
   const handleExportDoctorSymptoms = async () => {
     if (doctorSymptoms.length === 0) return;
 
     const lines: string[] = [];
-
     doctorSymptoms.forEach(item => {
       lines.push(
-        `■ ${item.date}${item.time ? ` ${item.time}` : ''}  ${item.label}`
+        `■ ${item.date}${item.time ? ` ${item.time}` : ''} ${item.label}`
       );
       if (item.memo) {
         lines.push(`  メモ: ${item.memo}`);
@@ -108,44 +219,33 @@ export default function StatsScreen() {
     const text = lines.join('\n');
 
     try {
-      const fileName = `serenote-doctor-notes-${Date.now()}.txt`;
-
-      const baseDir: string | null =
-        (FileSystem as any).cacheDirectory ??
-        (FileSystem as any).documentDirectory ??
-        null;
+      const baseDir = resolveBaseDir();
 
       if (!baseDir) {
-        console.warn('No suitable directory for export');
+        Alert.alert(
+          'エクスポートできません',
+          '保存先ディレクトリを取得できませんでした。'
+        );
         return;
       }
 
-      const fileUri = baseDir + fileName;
+      const fileUri =
+        baseDir + `serenote-doctor-notes-${Date.now()}.txt`;
 
-      await FileSystem.writeAsStringAsync(fileUri, text, {
-        encoding: ((FileSystem as any).EncodingType?.UTF8 ?? 'utf8') as any,
-      });
+      await FileSystem.writeAsStringAsync(fileUri, text);
 
-      if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'text/plain',
-            dialogTitle: '診察用メモを共有',
-          });
-        } else {
-          console.log('Sharing not available on this platform');
-        }
-      } else {
-        console.log('File written to', fileUri);
-      }
+      await shareFile(fileUri, 'text/plain', '診察用メモを共有');
     } catch (e) {
       console.warn('Export doctor symptoms failed', e);
-      Alert.alert('エラー', 'テキストの出力に失敗しました。もう一度お試しください。');
+      Alert.alert(
+        'エラー',
+        'テキストの出力に失敗しました。もう一度お試しください。'
+      );
     }
   };
 
-  // ===== forDoctor フラグを一括リセット =====
+  // ========= 2) forDoctor フラグ一括リセット =========
+
   const handleResetDoctorSymptoms = () => {
     if (doctorSymptoms.length === 0) return;
 
@@ -173,9 +273,9 @@ export default function StatsScreen() {
                 );
 
                 updated[date as DateKey] = {
-                  ...entry,
+                  ...(entry as SerenoteEntry),
                   symptoms: newSymptoms,
-                } as SerenoteEntry;
+                };
               });
 
               await saveAllEntries(updated);
@@ -193,6 +293,86 @@ export default function StatsScreen() {
     );
   };
 
+  // ========= 3) 全データ JSON バックアップ =========
+
+  const handleExportAllJson = async () => {
+    const hasData = Object.keys(allEntries).length > 0;
+    if (!hasData) {
+      Alert.alert('データがありません', 'まだ記録がありません。');
+      return;
+    }
+
+    try {
+      const baseDir = resolveBaseDir();
+      if (!baseDir) {
+        Alert.alert(
+          'エクスポートできません',
+          '保存先ディレクトリを取得できませんでした。'
+        );
+        return;
+      }
+
+      const json = JSON.stringify(allEntries, null, 2);
+      const fileUri =
+        baseDir + `serenote-backup-${Date.now()}.json`;
+
+      await FileSystem.writeAsStringAsync(fileUri, json);
+
+      await shareFile(
+        fileUri,
+        'application/json',
+        'SereNote データ(JSON)を共有'
+      );
+    } catch (e) {
+      console.warn('Export all JSON failed', e);
+      Alert.alert(
+        'エラー',
+        'JSON エクスポートに失敗しました。もう一度お試しください。'
+      );
+    }
+  };
+
+  // ========= 4) 全イベント CSV エクスポート =========
+
+  const handleExportAllCsv = async () => {
+    const hasData = Object.keys(allEntries).length > 0;
+    if (!hasData) {
+      Alert.alert('データがありません', 'まだ記録がありません。');
+      return;
+    }
+
+    try {
+      const baseDir = resolveBaseDir();
+      if (!baseDir) {
+        Alert.alert(
+          'エクスポートできません',
+          '保存先ディレクトリを取得できませんでした。'
+        );
+        return;
+      }
+
+      const csvText = buildCsvFromEntries(allEntries);
+      const fileUri =
+        baseDir + `serenote-all-events-${Date.now()}.csv`;
+
+      await FileSystem.writeAsStringAsync(fileUri, csvText);
+
+      await shareFile(
+        fileUri,
+        'text/csv',
+        'SereNote 全イベント(CSV)を共有'
+      );
+    } catch (e) {
+      console.warn('Export all CSV failed', e);
+      Alert.alert(
+        'エラー',
+        'CSV エクスポートに失敗しました。もう一度お試しください。'
+      );
+    }
+  };
+
+  // ========= ローディング =========
+
   if (loading) {
     return (
       <SafeAreaView
@@ -201,7 +381,7 @@ export default function StatsScreen() {
           { backgroundColor: theme.colors.background },
         ]}
       >
-        <View style={styles.center}>
+        <View style={[styles.container, styles.center]}>
           <ActivityIndicator color={theme.colors.primary} />
           <Text
             style={[
@@ -216,6 +396,8 @@ export default function StatsScreen() {
     );
   }
 
+  // ========= UI本体 =========
+
   return (
     <SafeAreaView
       style={[
@@ -223,32 +405,51 @@ export default function StatsScreen() {
         { backgroundColor: theme.colors.background },
       ]}
     >
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ paddingBottom: 24 }}
-      >
-        {/* ヘッダー（タイトル + 期間スイッチ） */}
+      <View style={styles.container}>
+        {/* タイトル + 期間スイッチ */}
         <StatsHeader period={period} onChangePeriod={setPeriod} />
 
-        {/* 各カード（気分 / 睡眠 / 服薬 / メモ） */}
-        <MoodCard rows={rows} periodLabel={periodLabel} />
-        <SleepCard rows={rows} periodLabel={periodLabel} />
-        <MedsCard rows={rows} periodLabel={periodLabel} />
-        <NotesCard rows={rows} periodLabel={periodLabel} />
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 32 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 期間サマリー */}
+          <OverviewCard rows={rows} periodLabel={periodLabel} />
 
-        {/* 診察で話したいメモ一覧 */}
-        <DoctorNotesSection
-          doctorSymptoms={doctorSymptoms}
-          onExport={handleExportDoctorSymptoms}
-          onReset={handleResetDoctorSymptoms}
-        />
-      </ScrollView>
+          {/* 各カード（気分 / 睡眠 / 行動 / 行動×気分 / 服薬 / メモ） */}
+          <MoodCard rows={rows} periodLabel={periodLabel} />
+          <SleepCard rows={rows} periodLabel={periodLabel} />
+          {/* 行動時間 → Free */}
+          <ActivityCard rows={rows} periodLabel={periodLabel} />
+          {/* 行動 × 気分 → Pro 機能 */}
+          <ActivityMoodCard
+            rows={rows}
+            periodLabel={periodLabel}
+            locked={!isPro}
+            onPressUpgrade={openProPaywall}
+          />
+          <MedsCard rows={rows} periodLabel={periodLabel} />
+          <NotesCard rows={rows} periodLabel={periodLabel} />
+
+          {/* 診察で話したいメモ一覧 */}
+          <DoctorNotesSection
+            doctorSymptoms={doctorSymptoms}
+            onExport={handleExportDoctorSymptoms}
+            onReset={handleResetDoctorSymptoms}
+          />
+
+          {/* 全データエクスポート（CSV / JSON） */}
+          <ExportAllSection
+            onExportCsv={handleExportAllCsv}
+            onExportJson={handleExportAllJson}
+          />
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 // ========= スタイル（画面共通） =========
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,

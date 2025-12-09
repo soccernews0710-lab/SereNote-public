@@ -1,34 +1,37 @@
-// app/stats/MedsCard.tsx
+// app/stats/SleepCard.tsx
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import {
+  buildChartPoints,
+  calcSleepSummary,
+  type StatsRow,
+} from '../../src/stats/statsLogic';
 import { useTheme } from '../../src/theme/useTheme';
 import { LineChart } from './LineChart';
-import {
-    buildChartPoints,
-    calcMedsSummary,
-    type StatsRow,
-} from './statsLogic';
 
 type Props = {
   rows: StatsRow[];
   periodLabel: string;
 };
 
-export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
+export const SleepCard: React.FC<Props> = ({ rows, periodLabel }) => {
   const { theme } = useTheme();
 
-  const medsSummary = useMemo(() => calcMedsSummary(rows), [rows]);
+  const sleepSummary = useMemo(() => calcSleepSummary(rows), [rows]);
 
-  const medsPoints = useMemo(
-    () => buildChartPoints(rows, r => (r.medsCount > 0 ? r.medsCount : null)),
+  const sleepPoints = useMemo(
+    () =>
+      buildChartPoints(rows, r =>
+        r.sleepMinutes != null ? r.sleepMinutes / 60 : null
+      ),
     [rows]
   );
 
-  const medsYMax =
-    medsPoints.length > 0
-      ? Math.max(4, Math.max(...medsPoints.map(p => p.value)))
-      : 4;
+  const sleepYMax =
+    sleepPoints.length > 0
+      ? Math.max(10, Math.ceil(Math.max(...sleepPoints.map(p => p.value)) + 1))
+      : 10;
 
   return (
     <View
@@ -44,7 +47,7 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
             { color: theme.colors.textMain },
           ]}
         >
-          服薬の記録
+          睡眠パターン
         </Text>
         <Text
           style={[
@@ -57,12 +60,12 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
       </View>
 
       <LineChart
-        color={theme.colors.accentMeds}
-        points={medsPoints}
+        color={theme.colors.accentSleep}
+        points={sleepPoints}
         yMin={0}
-        yMax={medsYMax}
-        height={140}
-        valueFormatter={v => `${v.toFixed(1)} 回`}
+        yMax={sleepYMax}
+        height={150}
+        valueFormatter={v => `${v.toFixed(1)} h`}
       />
 
       <View style={styles.cardBottomRow}>
@@ -73,7 +76,7 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textSub },
             ]}
           >
-            平均回数 / 日
+            平均睡眠時間
           </Text>
           <Text
             style={[
@@ -81,7 +84,17 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textMain },
             ]}
           >
-            {medsSummary.avgPerDay.toFixed(2)} 回
+            {sleepSummary.avgHours != null
+              ? `${sleepSummary.avgHours.toFixed(1)} h`
+              : '—'}
+          </Text>
+          <Text
+            style={[
+              styles.cardSub,
+              { color: theme.colors.textSub },
+            ]}
+          >
+            睡眠データのある日: {sleepSummary.daysWithData} 日
           </Text>
         </View>
         <View style={{ flex: 1 }}>
@@ -91,7 +104,7 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textSub },
             ]}
           >
-            服薬を記録した日
+            睡眠のボリューム感
           </Text>
           <Text
             style={[
@@ -99,7 +112,7 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textMain },
             ]}
           >
-            {medsSummary.daysWithMeds} 日
+            {sleepSummary.volumeTag}
           </Text>
         </View>
       </View>
@@ -144,5 +157,9 @@ const styles = StyleSheet.create({
   cardValue: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  cardSub: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });

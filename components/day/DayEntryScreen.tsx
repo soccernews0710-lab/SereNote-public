@@ -1,26 +1,26 @@
 // components/day/DayEntryScreen.tsx
 import React, {
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
 import {
-    ActionSheetIOS,
-    ActivityIndicator,
-    Alert,
-    Platform,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActionSheetIOS,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { TodayHeader } from '../today/TodayHeader';
 import {
-    TodaySummary,
-    TodaySummaryCard,
+  TodaySummary,
+  TodaySummaryCard,
 } from '../today/TodaySummaryCard';
 import { Timeline } from '../today/TodayTimeline';
 
@@ -40,8 +40,8 @@ import { useMoodModal } from '../../hooks/useMoodModal';
 import { useNoteModal, type NoteModalMode } from '../../hooks/useNoteModal';
 import { useSleepModal } from '../../hooks/useSleepModal';
 import {
-    useSymptomModal,
-    type SymptomModalMode,
+  useSymptomModal,
+  type SymptomModalMode,
 } from '../../hooks/useSymptomModal';
 import { useWakeModal } from '../../hooks/useWakeModal';
 
@@ -349,6 +349,39 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
     showSavedFlash();
   };
 
+    // ⭐ 症状プリセット: 長押しで即保存
+  const handleQuickPresetSymptom = (payload: {
+    label: string;
+    memo: string;
+    time: string;
+    forDoctor: boolean;
+    tag?: unknown;
+  }) => {
+    const { label, memo, time, forDoctor } = payload;
+
+    setEvents(prev => {
+      const newEvent: TimelineEvent = {
+        id:
+          typeof globalThis !== 'undefined' &&
+          (globalThis as any).crypto &&
+          typeof (globalThis as any).crypto.randomUUID === 'function'
+            ? (globalThis as any).crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: 'symptom',
+        label,
+        memo,
+        time,
+        forDoctor,
+        planned: false,
+      };
+      return [...prev, newEvent];
+    });
+
+    setEditingSymptomEvent(null);
+    showSavedFlash();
+    symptomModal.closeModal();
+  };
+
   // 「＋起床」ボタン → 新規モード
   const handlePressAddWake = () => {
     setEditingWakeEvent(null);
@@ -606,7 +639,7 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         setTimeText={moodModal.setTimeText}
       />
 
-      {/* 🏃 行動 */}
+            {/* 🏃 行動 */}
       <ActivityModal
         visible={activityModal.visible}
         onRequestClose={() => {
@@ -624,6 +657,8 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         setMemoText={activityModal.setMemoText}
         timeText={activityModal.timeText}
         setTimeText={activityModal.setTimeText}
+        endTimeText={activityModal.endTimeText}
+        setEndTimeText={activityModal.setEndTimeText}
         mode={activityModal.mode}
       />
 
@@ -639,7 +674,7 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         setTimeText={noteModal.setTimeText}
       />
 
-      {/* 😟 症状 */}
+        {/* 😟 症状 */}
       <SymptomModal
         visible={symptomModal.visible}
         mode={symptomModal.mode}
@@ -647,6 +682,8 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         onConfirm={() =>
           symptomModal.confirmAndSubmit(handleAddOrUpdateSymptom)
         }
+        // 🆕 プリセット長押しで即保存
+        onQuickPresetConfirm={handleQuickPresetSymptom}
         labelText={symptomModal.labelText}
         setLabelText={symptomModal.setLabelText}
         memoText={symptomModal.memoText}

@@ -2,17 +2,28 @@
 import React from 'react';
 import {
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import type {
-  ActivityCategory,
-  ActivityModalMode,
-} from '../../hooks/useActivityModal';
+import { useActivityPresets } from '../../src/activity/useActivityPresets';
+import type { ActivityCategory } from '../../src/types/timeline';
 import TimePicker from '../common/TimePicker';
+
+/**
+ * useActivityPresets 側で定義している想定の型
+ * （実際の定義に合わせて必要なら少し調整してね）
+ */
+type ActivityPreset = {
+  id: string;
+  category: ActivityCategory;
+  label: string;
+  emoji?: string;
+  defaultMinutes?: number | null;
+};
 
 type Props = {
   visible: boolean;
@@ -31,34 +42,30 @@ type Props = {
   timeText: string;
   setTimeText: (v: string) => void;
 
-  mode?: ActivityModalMode; // 'create' | 'edit'
+  // 🆕 終了時間
+  endTimeText: string;
+  setEndTimeText: (v: string) => void;
+
+  mode?: 'create' | 'edit';
 };
 
-// "HH:MM" 文字列 → hour/minute に分解（おかしかったら現在時刻）
-const parseTimeString = (t: string): { hour: number; minute: number } => {
-  const now = new Date();
-  let h = now.getHours();
-  let m = now.getMinutes();
+// HH:MM 文字列に minutes 分足す
+const addMinutes = (time: string, minutes: number): string => {
+  const m = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return time;
 
-  if (!t) {
-    return { hour: h, minute: m };
-  }
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (Number.isNaN(h) || Number.isNaN(min)) return time;
 
-  const [hs, ms] = t.split(':');
-  const hh = Number(hs);
-  const mm = Number(ms);
+  let total = h * 60 + min + minutes;
+  // 0–1439 に正規化
+  total = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
 
-  if (!Number.isNaN(hh) && hh >= 0 && hh < 24) {
-    h = hh;
-  }
-  if (!Number.isNaN(mm) && mm >= 0 && mm < 60) {
-    m = mm;
-  }
-
-  return { hour: h, minute: m };
+  const hh = String(Math.floor(total / 60)).padStart(2, '0');
+  const mm = String(total % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
 };
-
-const pad2 = (n: number) => n.toString().padStart(2, '0');
 
 export const ActivityModal: React.FC<Props> = ({
   visible,
@@ -72,30 +79,64 @@ export const ActivityModal: React.FC<Props> = ({
   setMemoText,
   timeText,
   setTimeText,
+  endTimeText,
+  setEndTimeText,
   mode = 'create',
 }) => {
-  const renderCategoryButton = (
-    value: ActivityCategory,
-    label: string,
-    emoji: string
-  ) => {
-    const active = category === value;
-    return (
-      <TouchableOpacity
-        style={[styles.chip, active && styles.chipActive]}
-        onPress={() => setCategory(value)}
-      >
-        <Text style={styles.chipText}>
-          {emoji} {label}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
+  const { presets } = useActivityPresets();
 
   const title = mode === 'edit' ? '行動を編集' : '行動を記録';
   const confirmLabel = mode === 'edit' ? '更新する' : '追加する';
 
-  const { hour, minute } = parseTimeString(timeText);
+  const handleSelectPreset = (preset: ActivityPreset) => {
+    // カテゴリ & ラベルを反映
+    setCategory(preset.category);
+    setLabelText(preset.label);
+
+    // defaultMinutes がある場合は終了時間を自動計算
+    if (preset.defaultMinutes && preset.defaultMinutes > 0) {
+      const baseTime = timeText; // openModal 時点で「今」の時刻が入っている想定
+      if (baseTime) {
+        const end = addMinutes(baseTime, preset.defaultMinutes);
+        setEndTimeText(end);
+      }
+    }
+  };
+
+  const renderPresetChips = () => {
+    if (!presets || presets.length === 0) return null;
+
+    return (
+      <>
+        <Text style={styles.label}>よく使う行動</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.presetRow}
+        >
+          {presets.map(preset => (
+            <TouchableOpacity
+              key={preset.id}
+              style={[
+                styles.presetChip,
+                category === preset.category &&
+                  labelText.trim() === preset.label &&
+                  styles.presetChipActive,
+              ]}
+              onPress={() => handleSelectPreset(preset)}
+            >
+              <Text style={styles.presetChipText}>
+                {preset.emoji ?? ''} {preset.label}
+                {preset.defaultMinutes
+                  ? `（${preset.defaultMinutes}分）`
+                  : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </>
+    );
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -103,21 +144,114 @@ export const ActivityModal: React.FC<Props> = ({
         <View className="card" style={styles.card}>
           <Text style={styles.title}>{title}</Text>
 
-          {/* 🕒 時間（スロット式） */}
-          <Text style={styles.label}>時間</Text>
+          {/* 🔹 プリセットチップ */}
+          {renderPresetChips()}
+
+          {/* 🕒 開始時間 */}
+          <Text style={styles.label}>開始時間</Text>
           <TimePicker value={timeText} onChange={setTimeText} />
 
+          {/* 🕒 終了時間（任意） */}
+          <Text style={styles.label}>終了時間（任意）</Text>
+          <TimePicker value={endTimeText} onChange={setEndTimeText} />
+
+          <Text style={styles.helperText}>
+            終了時間を入れると、行動時間の統計に反映されます。
+          </Text>
+
+          {/* どんな行動？ */}
           <Text style={styles.label}>どんな行動？</Text>
+
+          {/* 1段目：基本系 */}
           <View style={styles.row}>
-            {renderCategoryButton('meal', 'ごはん', '🍚')}
-            {renderCategoryButton('walk', '散歩', '🚶‍♂️')}
-          </View>
-          <View style={styles.row}>
-            {renderCategoryButton('talk', '会話', '🗣️')}
-            {renderCategoryButton('bath', 'お風呂', '🛁')}
-            {renderCategoryButton('other', 'その他', '✅')}
+            <CategoryChip
+              value="meal"
+              label="ごはん"
+              emoji="🍚"
+              active={category === 'meal'}
+              onPress={() => setCategory('meal')}
+            />
+            <CategoryChip
+              value="walk"
+              label="散歩"
+              emoji="🚶‍♂️"
+              active={category === 'walk'}
+              onPress={() => setCategory('walk')}
+            />
+            <CategoryChip
+              value="exercise"
+              label="運動"
+              emoji="🏃‍♂️"
+              active={category === 'exercise'}
+              onPress={() => setCategory('exercise')}
+            />
           </View>
 
+          {/* 2段目：休む・仕事系 */}
+          <View style={styles.row}>
+            <CategoryChip
+              value="rest"
+              label="休憩"
+              emoji="😌"
+              active={category === 'rest'}
+              onPress={() => setCategory('rest')}
+            />
+            <CategoryChip
+              value="nap"
+              label="昼寝"
+              emoji="🛏️"
+              active={category === 'nap'}
+              onPress={() => setCategory('nap')}
+            />
+            <CategoryChip
+              value="work"
+              label="仕事・勉強"
+              emoji="💻"
+              active={category === 'work'}
+              onPress={() => setCategory('work')}
+            />
+          </View>
+
+          {/* 3段目：コミュニケーション・その他 */}
+          <View style={styles.row}>
+            <CategoryChip
+              value="talk"
+              label="会話"
+              emoji="🗣️"
+              active={category === 'talk'}
+              onPress={() => setCategory('talk')}
+            />
+            <CategoryChip
+              value="bath"
+              label="お風呂"
+              emoji="🛁"
+              active={category === 'bath'}
+              onPress={() => setCategory('bath')}
+            />
+            <CategoryChip
+              value="screen"
+              label="画面時間"
+              emoji="📱"
+              active={category === 'screen'}
+              onPress={() => setCategory('screen')}
+            />
+            <CategoryChip
+              value="out"
+              label="外出"
+              emoji="🚆"
+              active={category === 'out'}
+              onPress={() => setCategory('out')}
+            />
+            <CategoryChip
+              value="other"
+              label="その他"
+              emoji="✅"
+              active={category === 'other'}
+              onPress={() => setCategory('other')}
+            />
+          </View>
+
+          {/* タイトル・メモ */}
           <Text style={styles.label}>タイトル（任意）</Text>
           <TextInput
             style={styles.input}
@@ -156,7 +290,31 @@ export const ActivityModal: React.FC<Props> = ({
   );
 };
 
-// default としても出しておく
+// 小さいカテゴリ用チップ
+type CategoryChipProps = {
+  value: ActivityCategory;
+  label: string;
+  emoji: string;
+  active: boolean;
+  onPress: () => void;
+};
+
+const CategoryChip: React.FC<CategoryChipProps> = ({
+  label,
+  emoji,
+  active,
+  onPress,
+}) => (
+  <TouchableOpacity
+    style={[styles.chip, active && styles.chipActive]}
+    onPress={onPress}
+  >
+    <Text style={styles.chipText}>
+      {emoji} {label}
+    </Text>
+  </TouchableOpacity>
+);
+
 export default ActivityModal;
 
 const styles = StyleSheet.create({
@@ -172,6 +330,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#FFF',
     padding: 16,
+    maxHeight: '90%',
   },
   title: {
     fontSize: 18,
@@ -186,11 +345,37 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     color: '#4B5563',
   },
+  helperText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 4,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  presetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  presetChipActive: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#4F46E5',
+  },
+  presetChipText: {
+    fontSize: 12,
+    color: '#111827',
   },
   chip: {
     paddingHorizontal: 10,

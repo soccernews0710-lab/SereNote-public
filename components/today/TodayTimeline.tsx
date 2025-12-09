@@ -9,7 +9,10 @@ import {
 } from 'react-native';
 import type { SerenoteTheme } from '../../src/theme/theme';
 import { useTheme } from '../../src/theme/useTheme';
-import type { TimelineEvent, TimelineEventType } from '../../src/types/timeline';
+import type {
+  TimelineEvent,
+  TimelineEventType,
+} from '../../src/types/timeline';
 
 type Props = {
   events: TimelineEvent[];
@@ -69,112 +72,122 @@ type ItemProps = {
   onLongPress?: () => void;
 };
 
-const TimelineItemCard: React.FC<ItemProps> = memo(({ event, onLongPress }) => {
-  const { theme } = useTheme();
-  const { icon, color } = getEventMeta(event, theme as SerenoteTheme);
-  const isPlanned = event.planned;
+const TimelineItemCard: React.FC<ItemProps> = memo(
+  ({ event, onLongPress }) => {
+    const { theme } = useTheme();
+    const { icon, color } = getEventMeta(event, theme as SerenoteTheme);
+    const isPlanned = event.planned;
 
-  return (
-    <View style={styles.itemRow}>
-      {/* 左側：時間 & 縦ライン */}
-      <View style={styles.timeColumn}>
-        <Text
-          style={[
-            styles.timeText,
-            { color: theme.colors.textSub },
+    // 🌟 表示用の時間（endTime があれば 19:00 – 19:30 形式）
+    const timeLabel = event.endTime
+      ? `${event.time} – ${event.endTime}`
+      : event.time;
+
+    return (
+      <View style={styles.itemRow}>
+        {/* 左側：時間 & 縦ライン */}
+        <View style={styles.timeColumn}>
+          <Text
+            style={[
+              styles.timeText,
+              { color: theme.colors.textSub },
+            ]}
+          >
+            {timeLabel}
+          </Text>
+          <View style={styles.verticalLineContainer}>
+            <View
+              style={[
+                styles.verticalLine,
+                { backgroundColor: theme.colors.borderSoft },
+              ]}
+            />
+          </View>
+        </View>
+
+        {/* 右側：カード本体 */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              borderColor: theme.colors.borderSoft,
+              backgroundColor: theme.colors.surface,
+              opacity: pressed ? 0.6 : 1,
+            },
+            isPlanned && styles.cardPlanned,
           ]}
+          onLongPress={onLongPress}
         >
-          {event.time}
-        </Text>
-        <View style={styles.verticalLineContainer}>
-          <View
-            style={[
-              styles.verticalLine,
-              { backgroundColor: theme.colors.borderSoft },
-            ]}
-          />
-        </View>
+          {/* 左のカラーライン + アイコン */}
+          <View style={styles.cardLeft}>
+            <View
+              style={[
+                styles.colorBar,
+                {
+                  backgroundColor: color,
+                },
+              ]}
+            />
+            <Text
+              style={[
+                styles.iconText,
+                isPlanned && styles.iconTextPlanned,
+              ]}
+            >
+              {icon}
+            </Text>
+          </View>
+
+          {/* 右のテキスト部 */}
+          <View style={styles.cardContent}>
+            <Text
+              style={[
+                styles.labelText,
+                {
+                  color: theme.colors.textMain,
+                },
+                isPlanned && styles.labelTextPlanned,
+              ]}
+              numberOfLines={2}
+            >
+              {event.label}
+            </Text>
+
+            {event.memo ? (
+              <Text
+                style={[
+                  styles.memoText,
+                  { color: theme.colors.textSub },
+                ]}
+                numberOfLines={3}
+              >
+                {event.memo}
+              </Text>
+            ) : null}
+
+            {event.dosageText ? (
+              <Text
+                style={[
+                  styles.dosageText,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                {event.dosageText}
+              </Text>
+            ) : null}
+          </View>
+        </Pressable>
       </View>
-
-      {/* 右側：カード本体 */}
-      <Pressable
-        style={({ pressed }) => [
-          styles.card,
-          {
-            borderColor: theme.colors.borderSoft,
-            backgroundColor: theme.colors.surface,
-            opacity: pressed ? 0.6 : 1,
-          },
-          isPlanned && styles.cardPlanned,
-        ]}
-        onLongPress={onLongPress}
-      >
-        {/* 左のカラーライン + アイコン */}
-        <View style={styles.cardLeft}>
-          <View
-            style={[
-              styles.colorBar,
-              {
-                backgroundColor: color,
-              },
-            ]}
-          />
-          <Text
-            style={[
-              styles.iconText,
-              isPlanned && styles.iconTextPlanned,
-            ]}
-          >
-            {icon}
-          </Text>
-        </View>
-
-        {/* 右のテキスト部 */}
-        <View style={styles.cardContent}>
-          <Text
-            style={[
-              styles.labelText,
-              {
-                color: theme.colors.textMain,
-              },
-              isPlanned && styles.labelTextPlanned,
-            ]}
-            numberOfLines={2}
-          >
-            {event.label}
-          </Text>
-
-          {event.memo ? (
-            <Text
-              style={[
-                styles.memoText,
-                { color: theme.colors.textSub },
-              ]}
-              numberOfLines={3}
-            >
-              {event.memo}
-            </Text>
-          ) : null}
-
-          {event.dosageText ? (
-            <Text
-              style={[
-                styles.dosageText,
-                { color: theme.colors.textSub },
-              ]}
-            >
-              {event.dosageText}
-            </Text>
-          ) : null}
-        </View>
-      </Pressable>
-    </View>
-  );
-});
+    );
+  }
+);
 
 TimelineItemCard.displayName = 'TimelineItemCard';
 
-export const Timeline: React.FC<Props> = ({ events, onLongPressEvent }) => {
+export const Timeline: React.FC<Props> = ({
+  events,
+  onLongPressEvent,
+}) => {
   return (
     <FlatList
       data={events}
@@ -202,7 +215,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   timeColumn: {
-    width: 60,
+    width: 80, // ← 少し広げて 19:00 – 19:30 を収めやすく
     alignItems: 'flex-end',
     paddingRight: 8,
   },

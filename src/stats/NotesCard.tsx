@@ -1,28 +1,38 @@
-// app/stats/MoodCard.tsx
+// app/stats/NotesCard.tsx
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import {
+  buildChartPoints,
+  calcNotesSummary,
+  type StatsRow,
+} from '../../src/stats/statsLogic';
 import { useTheme } from '../../src/theme/useTheme';
 import { LineChart } from './LineChart';
-import {
-    buildChartPoints,
-    calcMoodSummary,
-    type StatsRow,
-} from './statsLogic';
 
 type Props = {
   rows: StatsRow[];
   periodLabel: string;
 };
 
-export const MoodCard: React.FC<Props> = ({ rows, periodLabel }) => {
+export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
   const { theme } = useTheme();
 
-  const moodSummary = useMemo(() => calcMoodSummary(rows), [rows]);
-  const moodPoints = useMemo(
-    () => buildChartPoints(rows, r => r.moodAvg),
+  const notesSummary = useMemo(() => calcNotesSummary(rows), [rows]);
+
+  const notesPoints = useMemo(
+    () =>
+      buildChartPoints(rows, r => {
+        const total = r.notesCount + r.symptomsCount;
+        return total > 0 ? total : null;
+      }),
     [rows]
   );
+
+  const notesYMax =
+    notesPoints.length > 0
+      ? Math.max(4, Math.max(...notesPoints.map(p => p.value)))
+      : 4;
 
   return (
     <View
@@ -38,7 +48,7 @@ export const MoodCard: React.FC<Props> = ({ rows, periodLabel }) => {
             { color: theme.colors.textMain },
           ]}
         >
-          気分の傾向
+          メモ / 症状の記録
         </Text>
         <Text
           style={[
@@ -51,12 +61,12 @@ export const MoodCard: React.FC<Props> = ({ rows, periodLabel }) => {
       </View>
 
       <LineChart
-        color={theme.colors.accentMood}
-        points={moodPoints}
-        yMin={1}
-        yMax={5}
-        height={150}
-        valueFormatter={v => `${v.toFixed(2)} / 5`}
+        color={theme.colors.accentNotes}
+        points={notesPoints}
+        yMin={0}
+        yMax={notesYMax}
+        height={140}
+        valueFormatter={v => `${v.toFixed(1)} 件`}
       />
 
       <View style={styles.cardBottomRow}>
@@ -67,7 +77,7 @@ export const MoodCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textSub },
             ]}
           >
-            平均スコア
+            平均件数 / 日
           </Text>
           <Text
             style={[
@@ -75,17 +85,7 @@ export const MoodCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textMain },
             ]}
           >
-            {moodSummary.avgScore
-              ? moodSummary.avgScore.toFixed(2)
-              : '—'}
-          </Text>
-          <Text
-            style={[
-              styles.cardSub,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            {moodSummary.avgLabel}
+            {notesSummary.avgPerDay.toFixed(2)} 件
           </Text>
         </View>
         <View style={{ flex: 1 }}>
@@ -95,19 +95,15 @@ export const MoodCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textSub },
             ]}
           >
-            気分の安定度
+            書いた日数
           </Text>
           <Text
             style={[
               styles.cardValue,
-              {
-                fontSize: 15,
-                lineHeight: 20,
-                color: theme.colors.textMain,
-              },
+              { color: theme.colors.textMain },
             ]}
           >
-            {moodSummary.stabilityLabel}
+            {notesSummary.daysWithAny} 日
           </Text>
         </View>
       </View>
@@ -152,9 +148,5 @@ const styles = StyleSheet.create({
   cardValue: {
     fontSize: 18,
     fontWeight: '700',
-  },
-  cardSub: {
-    fontSize: 11,
-    marginTop: 2,
   },
 });

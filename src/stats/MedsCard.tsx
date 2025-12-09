@@ -1,37 +1,33 @@
-// app/stats/NotesCard.tsx
+// app/stats/MedsCard.tsx
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import {
+  buildChartPoints,
+  calcMedsSummary,
+  type StatsRow,
+} from '../../src/stats/statsLogic';
 import { useTheme } from '../../src/theme/useTheme';
 import { LineChart } from './LineChart';
-import {
-    buildChartPoints,
-    calcNotesSummary,
-    type StatsRow,
-} from './statsLogic';
 
 type Props = {
   rows: StatsRow[];
   periodLabel: string;
 };
 
-export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
+export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
   const { theme } = useTheme();
 
-  const notesSummary = useMemo(() => calcNotesSummary(rows), [rows]);
+  const medsSummary = useMemo(() => calcMedsSummary(rows), [rows]);
 
-  const notesPoints = useMemo(
-    () =>
-      buildChartPoints(rows, r => {
-        const total = r.notesCount + r.symptomsCount;
-        return total > 0 ? total : null;
-      }),
+  const medsPoints = useMemo(
+    () => buildChartPoints(rows, r => (r.medsCount > 0 ? r.medsCount : null)),
     [rows]
   );
 
-  const notesYMax =
-    notesPoints.length > 0
-      ? Math.max(4, Math.max(...notesPoints.map(p => p.value)))
+  const medsYMax =
+    medsPoints.length > 0
+      ? Math.max(4, Math.max(...medsPoints.map(p => p.value)))
       : 4;
 
   return (
@@ -48,7 +44,7 @@ export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
             { color: theme.colors.textMain },
           ]}
         >
-          メモ / 症状の記録
+          服薬の記録
         </Text>
         <Text
           style={[
@@ -61,12 +57,12 @@ export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
       </View>
 
       <LineChart
-        color={theme.colors.accentNotes}
-        points={notesPoints}
+        color={theme.colors.accentMeds}
+        points={medsPoints}
         yMin={0}
-        yMax={notesYMax}
+        yMax={medsYMax}
         height={140}
-        valueFormatter={v => `${v.toFixed(1)} 件`}
+        valueFormatter={v => `${v.toFixed(1)} 回`}
       />
 
       <View style={styles.cardBottomRow}>
@@ -77,7 +73,7 @@ export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textSub },
             ]}
           >
-            平均件数 / 日
+            平均回数 / 日
           </Text>
           <Text
             style={[
@@ -85,7 +81,7 @@ export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textMain },
             ]}
           >
-            {notesSummary.avgPerDay.toFixed(2)} 件
+            {medsSummary.avgPerDay.toFixed(2)} 回
           </Text>
         </View>
         <View style={{ flex: 1 }}>
@@ -95,7 +91,7 @@ export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textSub },
             ]}
           >
-            書いた日数
+            服薬を記録した日
           </Text>
           <Text
             style={[
@@ -103,7 +99,7 @@ export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textMain },
             ]}
           >
-            {notesSummary.daysWithAny} 日
+            {medsSummary.daysWithMeds} 日
           </Text>
         </View>
       </View>

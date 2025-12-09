@@ -2,11 +2,11 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -93,40 +93,42 @@ export default function UserSettingsMenuScreen() {
           </TouchableOpacity>
 
           {/* プライバシーロック */}
-            <TouchableOpacity
+          <TouchableOpacity
             style={[
-                styles.itemCard,
-                { backgroundColor: theme.colors.card },
+              styles.itemCard,
+              { backgroundColor: theme.colors.card },
             ]}
-            onPress={() => router.push('/settings/user-settings-privacy-lock')}
-            >
+            onPress={() =>
+              router.push('/settings/user-settings-privacy-lock')
+            }
+          >
             <View style={styles.itemTextBox}>
-                <Text
+              <Text
                 style={[
-                    styles.itemTitle,
-                    { color: theme.colors.textMain },
+                  styles.itemTitle,
+                  { color: theme.colors.textMain },
                 ]}
-                >
+              >
                 プライバシーロック
-                </Text>
-                <Text
+              </Text>
+              <Text
                 style={[
-                    styles.itemSubtitle,
-                    { color: theme.colors.textSub },
+                  styles.itemSubtitle,
+                  { color: theme.colors.textSub },
                 ]}
-                >
+              >
                 FaceID / PIN でアプリを保護します。
-                </Text>
+              </Text>
             </View>
             <Text
-                style={[
+              style={[
                 styles.itemChevron,
                 { color: theme.colors.textSub },
-                ]}
+              ]}
             >
-                ›
+              ›
             </Text>
-            </TouchableOpacity>
+          </TouchableOpacity>
 
           {/* テーマカラー */}
           <TouchableOpacity
@@ -268,6 +270,44 @@ export default function UserSettingsMenuScreen() {
                 ]}
               >
                 リマインド時刻や、お薬一覧の登録・編集ができます。
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.itemChevron,
+                { color: theme.colors.textSub },
+              ]}
+            >
+              ›
+            </Text>
+          </TouchableOpacity>
+
+          {/* 🆕 行動プリセット */}
+          <TouchableOpacity
+            style={[
+              styles.itemCard,
+              { backgroundColor: theme.colors.card },
+            ]}
+            onPress={() =>
+              router.push('/settings/user-settings-activity-presets')
+            }
+          >
+            <View style={styles.itemTextBox}>
+              <Text
+                style={[
+                  styles.itemTitle,
+                  { color: theme.colors.textMain },
+                ]}
+              >
+                行動プリセット
+              </Text>
+              <Text
+                style={[
+                  styles.itemSubtitle,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                「ごはん30分」「散歩20分」など、よく使う行動のプリセットを編集します。
               </Text>
             </View>
             <Text

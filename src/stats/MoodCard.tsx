@@ -1,37 +1,28 @@
-// app/stats/SleepCard.tsx
+// app/stats/MoodCard.tsx
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import {
+  buildChartPoints,
+  calcMoodSummary,
+  type StatsRow,
+} from '../../src/stats/statsLogic';
 import { useTheme } from '../../src/theme/useTheme';
 import { LineChart } from './LineChart';
-import {
-    buildChartPoints,
-    calcSleepSummary,
-    type StatsRow,
-} from './statsLogic';
 
 type Props = {
   rows: StatsRow[];
   periodLabel: string;
 };
 
-export const SleepCard: React.FC<Props> = ({ rows, periodLabel }) => {
+export const MoodCard: React.FC<Props> = ({ rows, periodLabel }) => {
   const { theme } = useTheme();
 
-  const sleepSummary = useMemo(() => calcSleepSummary(rows), [rows]);
-
-  const sleepPoints = useMemo(
-    () =>
-      buildChartPoints(rows, r =>
-        r.sleepMinutes != null ? r.sleepMinutes / 60 : null
-      ),
+  const moodSummary = useMemo(() => calcMoodSummary(rows), [rows]);
+  const moodPoints = useMemo(
+    () => buildChartPoints(rows, r => r.moodAvg),
     [rows]
   );
-
-  const sleepYMax =
-    sleepPoints.length > 0
-      ? Math.max(10, Math.ceil(Math.max(...sleepPoints.map(p => p.value)) + 1))
-      : 10;
 
   return (
     <View
@@ -47,7 +38,7 @@ export const SleepCard: React.FC<Props> = ({ rows, periodLabel }) => {
             { color: theme.colors.textMain },
           ]}
         >
-          睡眠パターン
+          気分の傾向
         </Text>
         <Text
           style={[
@@ -60,12 +51,12 @@ export const SleepCard: React.FC<Props> = ({ rows, periodLabel }) => {
       </View>
 
       <LineChart
-        color={theme.colors.accentSleep}
-        points={sleepPoints}
-        yMin={0}
-        yMax={sleepYMax}
+        color={theme.colors.accentMood}
+        points={moodPoints}
+        yMin={1}
+        yMax={5}
         height={150}
-        valueFormatter={v => `${v.toFixed(1)} h`}
+        valueFormatter={v => `${v.toFixed(2)} / 5`}
       />
 
       <View style={styles.cardBottomRow}>
@@ -76,7 +67,7 @@ export const SleepCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textSub },
             ]}
           >
-            平均睡眠時間
+            平均スコア
           </Text>
           <Text
             style={[
@@ -84,8 +75,8 @@ export const SleepCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textMain },
             ]}
           >
-            {sleepSummary.avgHours != null
-              ? `${sleepSummary.avgHours.toFixed(1)} h`
+            {moodSummary.avgScore
+              ? moodSummary.avgScore.toFixed(2)
               : '—'}
           </Text>
           <Text
@@ -94,7 +85,7 @@ export const SleepCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textSub },
             ]}
           >
-            睡眠データのある日: {sleepSummary.daysWithData} 日
+            {moodSummary.avgLabel}
           </Text>
         </View>
         <View style={{ flex: 1 }}>
@@ -104,15 +95,19 @@ export const SleepCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textSub },
             ]}
           >
-            睡眠のボリューム感
+            気分の安定度
           </Text>
           <Text
             style={[
               styles.cardValue,
-              { color: theme.colors.textMain },
+              {
+                fontSize: 15,
+                lineHeight: 20,
+                color: theme.colors.textMain,
+              },
             ]}
           >
-            {sleepSummary.volumeTag}
+            {moodSummary.stabilityLabel}
           </Text>
         </View>
       </View>
