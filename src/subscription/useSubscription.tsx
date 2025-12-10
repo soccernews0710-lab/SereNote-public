@@ -67,10 +67,10 @@ export const SubscriptionProvider: React.FC<{ children: ReactNode }> = ({
   const openProPaywall = () => {
     Alert.alert(
       'SereNote Pro',
-      'SereNote Pro では「行動 × 気分」の詳しい統計を確認できます。\n\n' +
-        '・行動時間の合計 / 1日平均\n' +
-        '・気分と行動の関連性\n' +
-        '・診察に役立つ振り返り\n\n' +
+      'SereNote Pro では、次のような機能が使えるようになります。\n\n' +
+        '・気分の記録が 1 日何回でも可能\n' +
+        '・行動 × 気分 の詳しい統計\n' +
+        '・診察に役立つ月間の振り返りレポート（予定）\n\n' +
         '※ 課金画面と連携するまでは、このお知らせのみ表示されます。',
       [{ text: 'OK' }]
     );

@@ -1,11 +1,16 @@
 // components/today/SleepModal.tsx
 import React from 'react';
 import {
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import TimePicker from '../common/TimePicker';
@@ -41,40 +46,54 @@ const SleepModal: React.FC<Props> = ({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <Text style={styles.title}>{title}</Text>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={80}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.backdrop}>
+            <View style={styles.card}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.title}>{title}</Text>
 
-          {/* 🕒 時刻（スロット式） */}
-          <Text style={styles.label}>寝た時間</Text>
-          <TimePicker value={timeText} onChange={setTimeText} />
+                {/* 🕒 時刻（スロット式） */}
+                <Text style={styles.label}>寝た時間</Text>
+                <TimePicker value={timeText} onChange={setTimeText} />
 
-          <Text style={styles.label}>メモ（任意）</Text>
-          <TextInput
-            style={[styles.input, styles.inputMulti]}
-            multiline
-            placeholder="例：なかなか寝付けなかった など"
-            value={memoText}
-            onChangeText={setMemoText}
-            textAlignVertical="top"
-          />
+                <Text style={styles.label}>メモ（任意）</Text>
+                <TextInput
+                  style={[styles.input, styles.inputMulti]}
+                  multiline
+                  placeholder="例：なかなか寝付けなかった など"
+                  value={memoText}
+                  onChangeText={setMemoText}
+                  textAlignVertical="top"
+                />
+              </ScrollView>
 
-          <View style={styles.footerRow}>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonCancel]}
-              onPress={onRequestClose}
-            >
-              <Text style={styles.buttonTextCancel}>キャンセル</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonPrimary]}
-              onPress={onConfirm}
-            >
-              <Text style={styles.buttonTextPrimary}>{confirmLabel}</Text>
-            </TouchableOpacity>
+              <View style={styles.footerRow}>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonCancel]}
+                  onPress={onRequestClose}
+                >
+                  <Text style={styles.buttonTextCancel}>キャンセル</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonPrimary]}
+                  onPress={onConfirm}
+                >
+                  <Text style={styles.buttonTextPrimary}>{confirmLabel}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-        </View>
-      </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -82,6 +101,9 @@ const SleepModal: React.FC<Props> = ({
 export default SleepModal;
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -89,14 +111,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
-
   card: {
     width: '100%',
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
     padding: 16,
+    maxHeight: '90%',
   },
-
+  scrollContent: {
+    paddingBottom: 8,
+  },
   title: {
     fontSize: 16,
     fontWeight: '700',
@@ -104,14 +128,12 @@ const styles = StyleSheet.create({
     color: '#111827',
     textAlign: 'center',
   },
-
   label: {
     fontSize: 13,
     marginTop: 10,
     marginBottom: 4,
     color: '#4B5563',
   },
-
   input: {
     borderRadius: 10,
     borderWidth: 1,
@@ -122,38 +144,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
     color: '#111827',
   },
-
   inputMulti: {
     minHeight: 80,
     textAlignVertical: 'top',
   },
-
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     marginTop: 20,
     gap: 8,
   },
-
   button: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
   },
-
   buttonCancel: {
     backgroundColor: '#E5E7EB',
   },
-
   buttonPrimary: {
     backgroundColor: '#4F46E5',
   },
-
   buttonTextCancel: {
     color: '#111827',
     fontSize: 13,
   },
-
   buttonTextPrimary: {
     color: '#FFFFFF',
     fontWeight: '600',

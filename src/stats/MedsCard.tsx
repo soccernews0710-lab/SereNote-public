@@ -1,14 +1,13 @@
-// app/stats/MedsCard.tsx
+// src/stats/MedsCard.tsx （or app/stats/MedsCard.tsx）
+
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import {
-  buildChartPoints,
   calcMedsSummary,
   type StatsRow,
 } from '../../src/stats/statsLogic';
 import { useTheme } from '../../src/theme/useTheme';
-import { LineChart } from './LineChart';
 
 type Props = {
   rows: StatsRow[];
@@ -20,15 +19,23 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
 
   const medsSummary = useMemo(() => calcMedsSummary(rows), [rows]);
 
-  const medsPoints = useMemo(
-    () => buildChartPoints(rows, r => (r.medsCount > 0 ? r.medsCount : null)),
-    [rows]
-  );
+  const totalDays = rows.length;
+  const daysWithMeds = medsSummary.daysWithMeds ?? 0;
+  const missedDays =
+    totalDays > 0 ? Math.max(totalDays - daysWithMeds, 0) : 0;
 
-  const medsYMax =
-    medsPoints.length > 0
-      ? Math.max(4, Math.max(...medsPoints.map(p => p.value)))
-      : 4;
+  const adherenceText =
+    totalDays > 0
+      ? `${daysWithMeds} / ${totalDays} 日`
+      : '—';
+
+  const missedText =
+    totalDays > 0 ? `${missedDays} 日` : '—';
+
+  const avgPerDayText =
+    totalDays > 0
+      ? `${medsSummary.avgPerDay.toFixed(2)} 回 / 日`
+      : '—';
 
   return (
     <View
@@ -37,6 +44,7 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
         { backgroundColor: theme.colors.surface },
       ]}
     >
+      {/* 見出し */}
       <View style={styles.cardHeader}>
         <Text
           style={[
@@ -44,7 +52,7 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
             { color: theme.colors.textMain },
           ]}
         >
-          服薬の記録
+          服薬の概要
         </Text>
         <Text
           style={[
@@ -56,53 +64,73 @@ export const MedsCard: React.FC<Props> = ({ rows, periodLabel }) => {
         </Text>
       </View>
 
-      <LineChart
-        color={theme.colors.accentMeds}
-        points={medsPoints}
-        yMin={0}
-        yMax={medsYMax}
-        height={140}
-        valueFormatter={v => `${v.toFixed(1)} 回`}
-      />
-
-      <View style={styles.cardBottomRow}>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={[
-              styles.cardLabel,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            平均回数 / 日
-          </Text>
-          <Text
-            style={[
-              styles.cardValue,
-              { color: theme.colors.textMain },
-            ]}
-          >
-            {medsSummary.avgPerDay.toFixed(2)} 回
-          </Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={[
-              styles.cardLabel,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            服薬を記録した日
-          </Text>
-          <Text
-            style={[
-              styles.cardValue,
-              { color: theme.colors.textMain },
-            ]}
-          >
-            {medsSummary.daysWithMeds} 日
-          </Text>
-        </View>
+      {/* 内容エリア（3行のテキスト） */}
+      <View style={styles.row}>
+        <Text
+          style={[
+            styles.label,
+            { color: theme.colors.textSub },
+          ]}
+        >
+          服薬を記録した日
+        </Text>
+        <Text
+          style={[
+            styles.value,
+            { color: theme.colors.textMain },
+          ]}
+        >
+          {adherenceText}
+        </Text>
       </View>
+
+      <View style={styles.row}>
+        <Text
+          style={[
+            styles.label,
+            { color: theme.colors.textSub },
+          ]}
+        >
+          飲み忘れ（記録なし）
+        </Text>
+        <Text
+          style={[
+            styles.value,
+            { color: theme.colors.textMain },
+          ]}
+        >
+          {missedText}
+        </Text>
+      </View>
+
+      <View style={[styles.row, { marginTop: 4 }]}>
+        <Text
+          style={[
+            styles.label,
+            { color: theme.colors.textSub },
+          ]}
+        >
+          1日あたりの平均回数
+        </Text>
+        <Text
+          style={[
+            styles.value,
+            { color: theme.colors.textMain },
+          ]}
+        >
+          {avgPerDayText}
+        </Text>
+      </View>
+
+      {/* 補足テキスト */}
+      <Text
+        style={[
+          styles.note,
+          { color: theme.colors.textSub },
+        ]}
+      >
+        ※ 記録がない日は「飲み忘れ / 未記録」としてカウントしています。
+      </Text>
     </View>
   );
 };
@@ -132,17 +160,21 @@ const styles = StyleSheet.create({
   cardPeriodText: {
     fontSize: 12,
   },
-  cardBottomRow: {
+  row: {
     flexDirection: 'row',
-    marginTop: 10,
-    gap: 12,
+    justifyContent: 'space-between',
+    marginTop: 4,
   },
-  cardLabel: {
+  label: {
     fontSize: 12,
-    marginBottom: 2,
   },
-  cardValue: {
-    fontSize: 18,
-    fontWeight: '700',
+  value: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  note: {
+    marginTop: 8,
+    fontSize: 11,
+    lineHeight: 16,
   },
 });

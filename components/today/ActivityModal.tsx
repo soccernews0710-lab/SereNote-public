@@ -1,12 +1,16 @@
 // components/today/ActivityModal.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useActivityPresets } from '../../src/activity/useActivityPresets';
@@ -15,7 +19,6 @@ import TimePicker from '../common/TimePicker';
 
 /**
  * useActivityPresets 側で定義している想定の型
- * （実際の定義に合わせて必要なら少し調整してね）
  */
 type ActivityPreset = {
   id: string;
@@ -42,7 +45,7 @@ type Props = {
   timeText: string;
   setTimeText: (v: string) => void;
 
-  // 🆕 終了時間
+  // 終了時間（任意）
   endTimeText: string;
   setEndTimeText: (v: string) => void;
 
@@ -88,6 +91,10 @@ export const ActivityModal: React.FC<Props> = ({
   const title = mode === 'edit' ? '行動を編集' : '行動を記録';
   const confirmLabel = mode === 'edit' ? '更新する' : '追加する';
 
+  // A案：タップするとピッカーが出る
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+
   const handleSelectPreset = (preset: ActivityPreset) => {
     // カテゴリ & ラベルを反映
     setCategory(preset.category);
@@ -113,6 +120,7 @@ export const ActivityModal: React.FC<Props> = ({
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.presetRow}
+          keyboardShouldPersistTaps="handled"
         >
           {presets.map(preset => (
             <TouchableOpacity
@@ -138,154 +146,240 @@ export const ActivityModal: React.FC<Props> = ({
     );
   };
 
+  const handleClearEndTime = () => {
+    setEndTimeText('');
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.backdrop}>
-        <View className="card" style={styles.card}>
-          <Text style={styles.title}>{title}</Text>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={80} // 必要なら微調整
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.backdrop}>
+            <View style={styles.card}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.title}>{title}</Text>
 
-          {/* 🔹 プリセットチップ */}
-          {renderPresetChips()}
+                {/* 🔹 プリセットチップ */}
+                {renderPresetChips()}
 
-          {/* 🕒 開始時間 */}
-          <Text style={styles.label}>開始時間</Text>
-          <TimePicker value={timeText} onChange={setTimeText} />
+                {/* 🕒 開始時間（タップでピッカー表示） */}
+                <Text style={styles.label}>開始時間</Text>
+                <TouchableOpacity
+                  style={styles.timeInput}
+                  onPress={() => setShowStartPicker(true)}
+                >
+                  <Text style={styles.timeInputLabel}>開始</Text>
+                  <Text
+                    style={
+                      timeText
+                        ? styles.timeInputText
+                        : styles.timeInputPlaceholder
+                    }
+                  >
+                    {timeText || '--:--'}
+                  </Text>
+                </TouchableOpacity>
 
-          {/* 🕒 終了時間（任意） */}
-          <Text style={styles.label}>終了時間（任意）</Text>
-          <TimePicker value={endTimeText} onChange={setEndTimeText} />
+                {showStartPicker && (
+                  <View style={styles.timePickerContainer}>
+                    <TimePicker
+                      value={timeText}
+                      onChange={v => {
+                        setTimeText(v);
+                        setShowStartPicker(false);
+                      }}
+                    />
+                  </View>
+                )}
 
-          <Text style={styles.helperText}>
-            終了時間を入れると、行動時間の統計に反映されます。
-          </Text>
+                {/* 🕒 終了時間（任意・タップでピッカー表示） */}
+                <Text style={styles.label}>終了時間（任意）</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity
+                    style={[styles.timeInput, { flex: 1 }]}
+                    onPress={() => setShowEndPicker(true)}
+                  >
+                    <Text style={styles.timeInputLabel}>終了</Text>
+                    <Text
+                      style={
+                        endTimeText
+                          ? styles.timeInputText
+                          : styles.timeInputPlaceholder
+                      }
+                    >
+                      {endTimeText || '未設定'}
+                    </Text>
+                  </TouchableOpacity>
+                  {endTimeText ? (
+                    <TouchableOpacity
+                      style={styles.clearEndButton}
+                      onPress={handleClearEndTime}
+                    >
+                      <Text style={styles.clearEndButtonText}>
+                        クリア
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
 
-          {/* どんな行動？ */}
-          <Text style={styles.label}>どんな行動？</Text>
+                {showEndPicker && (
+                  <View style={styles.timePickerContainer}>
+                    <TimePicker
+                      value={endTimeText || timeText}
+                      onChange={v => {
+                        setEndTimeText(v);
+                        setShowEndPicker(false);
+                      }}
+                    />
+                  </View>
+                )}
 
-          {/* 1段目：基本系 */}
-          <View style={styles.row}>
-            <CategoryChip
-              value="meal"
-              label="ごはん"
-              emoji="🍚"
-              active={category === 'meal'}
-              onPress={() => setCategory('meal')}
-            />
-            <CategoryChip
-              value="walk"
-              label="散歩"
-              emoji="🚶‍♂️"
-              active={category === 'walk'}
-              onPress={() => setCategory('walk')}
-            />
-            <CategoryChip
-              value="exercise"
-              label="運動"
-              emoji="🏃‍♂️"
-              active={category === 'exercise'}
-              onPress={() => setCategory('exercise')}
-            />
+                <Text style={styles.helperText}>
+                  終了時間を入れると、行動時間の統計に反映されます。
+                </Text>
+
+                {/* どんな行動？ */}
+                <Text style={styles.label}>どんな行動？</Text>
+
+                {/* 1段目：基本系 */}
+                <View style={styles.row}>
+                  <CategoryChip
+                    value="meal"
+                    label="ごはん"
+                    emoji="🍚"
+                    active={category === 'meal'}
+                    onPress={() => setCategory('meal')}
+                  />
+                  <CategoryChip
+                    value="walk"
+                    label="散歩"
+                    emoji="🚶‍♂️"
+                    active={category === 'walk'}
+                    onPress={() => setCategory('walk')}
+                  />
+                  <CategoryChip
+                    value="exercise"
+                    label="運動"
+                    emoji="🏃‍♂️"
+                    active={category === 'exercise'}
+                    onPress={() => setCategory('exercise')}
+                  />
+                </View>
+
+                {/* 2段目：休む・仕事系 */}
+                <View style={styles.row}>
+                  <CategoryChip
+                    value="rest"
+                    label="休憩"
+                    emoji="😌"
+                    active={category === 'rest'}
+                    onPress={() => setCategory('rest')}
+                  />
+                  <CategoryChip
+                    value="nap"
+                    label="昼寝"
+                    emoji="🛏️"
+                    active={category === 'nap'}
+                    onPress={() => setCategory('nap')}
+                  />
+                  <CategoryChip
+                    value="work"
+                    label="仕事・勉強"
+                    emoji="💻"
+                    active={category === 'work'}
+                    onPress={() => setCategory('work')}
+                  />
+                </View>
+
+                {/* 3段目：コミュニケーション・その他 */}
+                <View style={styles.row}>
+                  <CategoryChip
+                    value="talk"
+                    label="会話"
+                    emoji="🗣️"
+                    active={category === 'talk'}
+                    onPress={() => setCategory('talk')}
+                  />
+                  <CategoryChip
+                    value="bath"
+                    label="お風呂"
+                    emoji="🛁"
+                    active={category === 'bath'}
+                    onPress={() => setCategory('bath')}
+                  />
+                  <CategoryChip
+                    value="screen"
+                    label="画面時間"
+                    emoji="📱"
+                    active={category === 'screen'}
+                    onPress={() => setCategory('screen')}
+                  />
+                  <CategoryChip
+                    value="out"
+                    label="外出"
+                    emoji="🚆"
+                    active={category === 'out'}
+                    onPress={() => setCategory('out')}
+                  />
+                  <CategoryChip
+                    value="other"
+                    label="その他"
+                    emoji="✅"
+                    active={category === 'other'}
+                    onPress={() => setCategory('other')}
+                  />
+                </View>
+
+                {/* タイトル・メモ */}
+                <Text style={styles.label}>タイトル（任意）</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="例：友達と30分電話"
+                  value={labelText}
+                  onChangeText={setLabelText}
+                  returnKeyType="next"
+                />
+
+                <Text style={styles.label}>メモ（任意）</Text>
+                <TextInput
+                  style={[styles.input, styles.inputMulti]}
+                  multiline
+                  placeholder="例：少し気分が楽になった"
+                  value={memoText}
+                  onChangeText={setMemoText}
+                  textAlignVertical="top"
+                />
+              </ScrollView>
+
+              {/* フッターボタン */}
+              <View style={styles.footerRow}>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonCancel]}
+                  onPress={onRequestClose}
+                >
+                  <Text style={styles.buttonTextCancel}>キャンセル</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonPrimary]}
+                  onPress={onConfirm}
+                >
+                  <Text style={styles.buttonTextPrimary}>
+                    {confirmLabel}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-
-          {/* 2段目：休む・仕事系 */}
-          <View style={styles.row}>
-            <CategoryChip
-              value="rest"
-              label="休憩"
-              emoji="😌"
-              active={category === 'rest'}
-              onPress={() => setCategory('rest')}
-            />
-            <CategoryChip
-              value="nap"
-              label="昼寝"
-              emoji="🛏️"
-              active={category === 'nap'}
-              onPress={() => setCategory('nap')}
-            />
-            <CategoryChip
-              value="work"
-              label="仕事・勉強"
-              emoji="💻"
-              active={category === 'work'}
-              onPress={() => setCategory('work')}
-            />
-          </View>
-
-          {/* 3段目：コミュニケーション・その他 */}
-          <View style={styles.row}>
-            <CategoryChip
-              value="talk"
-              label="会話"
-              emoji="🗣️"
-              active={category === 'talk'}
-              onPress={() => setCategory('talk')}
-            />
-            <CategoryChip
-              value="bath"
-              label="お風呂"
-              emoji="🛁"
-              active={category === 'bath'}
-              onPress={() => setCategory('bath')}
-            />
-            <CategoryChip
-              value="screen"
-              label="画面時間"
-              emoji="📱"
-              active={category === 'screen'}
-              onPress={() => setCategory('screen')}
-            />
-            <CategoryChip
-              value="out"
-              label="外出"
-              emoji="🚆"
-              active={category === 'out'}
-              onPress={() => setCategory('out')}
-            />
-            <CategoryChip
-              value="other"
-              label="その他"
-              emoji="✅"
-              active={category === 'other'}
-              onPress={() => setCategory('other')}
-            />
-          </View>
-
-          {/* タイトル・メモ */}
-          <Text style={styles.label}>タイトル（任意）</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="例：友達と30分電話"
-            value={labelText}
-            onChangeText={setLabelText}
-          />
-
-          <Text style={styles.label}>メモ（任意）</Text>
-          <TextInput
-            style={[styles.input, styles.inputMulti]}
-            multiline
-            placeholder="例：少し気分が楽になった"
-            value={memoText}
-            onChangeText={setMemoText}
-            textAlignVertical="top"
-          />
-
-          <View style={styles.footerRow}>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonCancel]}
-              onPress={onRequestClose}
-            >
-              <Text style={styles.buttonTextCancel}>キャンセル</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonPrimary]}
-              onPress={onConfirm}
-            >
-              <Text style={styles.buttonTextPrimary}>{confirmLabel}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -318,6 +412,9 @@ const CategoryChip: React.FC<CategoryChipProps> = ({
 export default ActivityModal;
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -331,6 +428,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     padding: 16,
     maxHeight: '90%',
+  },
+  scrollContent: {
+    paddingBottom: 8,
   },
   title: {
     fontSize: 18,
@@ -432,5 +532,47 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: '600',
     fontSize: 13,
+  },
+  // 時刻入力まわり
+  timeInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+  },
+  timeInputLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  timeInputText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  timeInputPlaceholder: {
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  timePickerContainer: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  clearEndButton: {
+    marginLeft: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F3F4F6',
+  },
+  clearEndButtonText: {
+    fontSize: 11,
+    color: '#4B5563',
   },
 });

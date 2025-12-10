@@ -50,10 +50,20 @@ import { useTheme } from '../../src/theme/useTheme';
 import type { DateKey, SerenoteEntry } from '../../src/types/serenote';
 import type { TimelineEvent } from '../../src/types/timeline';
 
+// 🆕 その日の最初の起動判定フック
+import { useDailyMoodPrompt } from '../../hooks/useDailyMoodPrompt';
+// 🆕 サブスクリプション情報
+import { useSubscription } from '../../src/subscription/useSubscription';
+
 type Props = {
   dateKey: DateKey;
   headerLabel: string;
+  // 🆕 History 詳細画面などから日付を切り替えたいときだけ渡す
+  onChangeDate?: (nextKey: DateKey) => void;
 };
+
+// 🆕 Free 版の 1 日あたり気分記録上限
+const FREE_MOOD_LIMIT_PER_DAY = 2;
 
 /**
  * 前日の DateKey を返す ("YYYY-MM-DD" → 1日前)
@@ -67,8 +77,25 @@ function getPrevDateKey(date: DateKey): DateKey {
   return `${y}-${m}-${dd}`;
 }
 
-export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
+/**
+ * 翌日の DateKey を返す ("YYYY-MM-DD" → 1日後)
+ */
+function getNextDateKey(date: DateKey): DateKey {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+export const DayEntryScreen: React.FC<Props> = ({
+  dateKey,
+  headerLabel,
+  onChangeDate,
+}) => {
   const { theme } = useTheme();
+  const { isPro, openProPaywall } = useSubscription();
 
   // 指定日付のイベント + 構造化エントリ
   const { entry, events, setEvents, loaded } = useDayEvents(dateKey, {
@@ -150,6 +177,12 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
     [events]
   );
 
+  // 🧮 当日の気分イベント数（Free 制限用）
+  const moodEventCount = useMemo(
+    () => events.filter(e => e.type === 'mood').length,
+    [events]
+  );
+
   // 💊 お薬モーダル
   const medModal = useMedicationModal(medList ?? []);
 
@@ -165,6 +198,38 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
   const noteModal = useNoteModal();
   // 😟 症状
   const symptomModal = useSymptomModal();
+
+  // 🆕 「その日の最初の起動かどうか」をチェックするフック
+  const { shouldAutoOpenMood, setShouldAutoOpenMood } =
+    useDailyMoodPrompt(dateKey);
+
+  // 🆕 今日の最初の起動だったら、気分モーダルを自動オープン
+  //    ただし Free で既に 2 件以上ある場合は開かない
+  useEffect(() => {
+    if (!shouldAutoOpenMood) return;
+    if (!loaded) return;
+
+    // Free 限定ユーザーで上限を越えていたら自動オープンをスキップ
+    if (!isPro && moodEventCount >= FREE_MOOD_LIMIT_PER_DAY) {
+      setShouldAutoOpenMood(false);
+      return;
+    }
+
+    setEditingMoodEvent(null);
+    moodModal.setMood(0);
+    moodModal.setMemoText('');
+    moodModal.setTimeText('');
+    moodModal.openModal();
+
+    setShouldAutoOpenMood(false);
+  }, [
+    shouldAutoOpenMood,
+    loaded,
+    isPro,
+    moodEventCount,
+    moodModal,
+    setShouldAutoOpenMood,
+  ]);
 
   // 🔎 Summary を SerenoteEntry から作る（睡眠は前日も見る）
   const todaySummary: TodaySummary = useMemo(() => {
@@ -225,12 +290,14 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
   const handleAddOrUpdateMood = (event: TimelineEvent) => {
     setEvents(prev => {
       if (editingMoodEvent) {
+        // 既存レコードの編集は制限なし
         return prev.map(e =>
           e.id === editingMoodEvent.id
             ? { ...event, id: editingMoodEvent.id }
             : e
         );
       }
+      // 新規追加のときだけ、実際の制限は「モーダルを開く前」にやっているのでここではそのまま追加
       return [...prev, event];
     });
     setEditingMoodEvent(null);
@@ -315,7 +382,7 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
     showSavedFlash();
   };
 
-  // ⭐ 症状: 新規 or 編集（🆕 forDoctor をちゃんと保持）
+  // ⭐ 症状: 新規 or 編集
   const handleAddOrUpdateSymptom = (
     event: TimelineEvent,
     mode: SymptomModalMode
@@ -325,8 +392,6 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         return prev.map(e =>
           e.id === event.id
             ? {
-                // 既存の値をベースにマージすることで
-                // forDoctor を含めたフィールドを落とさない
                 ...e,
                 ...event,
               }
@@ -334,7 +399,6 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         );
       }
 
-      // 新規の場合も forDoctor を明示的に持たせて保存
       const newSymptom: TimelineEvent = {
         ...event,
         type: 'symptom',
@@ -349,7 +413,7 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
     showSavedFlash();
   };
 
-    // ⭐ 症状プリセット: 長押しで即保存
+  // ⭐ 症状プリセット: 長押しで即保存
   const handleQuickPresetSymptom = (payload: {
     label: string;
     memo: string;
@@ -404,8 +468,28 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
     medModal.openModal('morning', null);
   };
 
-  // 「＋気分」ボタン → 新規モード
+  // 「＋気分」ボタン → 新規モード（Free / Pro 制限）
   const handlePressAddMood = () => {
+    // 既存の気分イベント編集の場合は制限なし（ここは新規だけなので関係なし）
+
+    if (!isPro && moodEventCount >= FREE_MOOD_LIMIT_PER_DAY) {
+      Alert.alert(
+        'SereNote Pro',
+        `無料版では、1日に記録できる「気分」は最大 ${FREE_MOOD_LIMIT_PER_DAY} 件までです。\n\n` +
+          'より細かく一日の中の気分の変化を記録したい場合は、SereNote Pro のご利用をご検討ください。',
+        [
+          { text: '閉じる', style: 'cancel' },
+          {
+            text: 'Pro について',
+            onPress: () => {
+              openProPaywall();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     setEditingMoodEvent(null);
     moodModal.setMood(0);
     moodModal.setMemoText('');
@@ -517,7 +601,50 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
       ]}
     >
       <View style={styles.container}>
-        <TodayHeader dateLabel={headerLabel} />
+        {/* 🆕 前日 / 翌日ナビつきヘッダー */}
+        <View style={styles.headerRow}>
+          {onChangeDate ? (
+            <TouchableOpacity
+              style={styles.headerNavButton}
+              onPress={() => onChangeDate(getPrevDateKey(dateKey))}
+            >
+              <Text
+                style={[
+                  styles.headerNavText,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                ＜ 前の日
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            // Todayタブ用：左右のバランスを保つためのダミー
+            <View style={styles.headerNavButtonPlaceholder} />
+          )}
+
+          <View style={styles.headerCenter}>
+            <TodayHeader dateLabel={headerLabel} />
+          </View>
+
+          {onChangeDate ? (
+            <TouchableOpacity
+              style={styles.headerNavButton}
+              onPress={() => onChangeDate(getNextDateKey(dateKey))}
+            >
+              <Text
+                style={[
+                  styles.headerNavText,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                翌日 ＞
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerNavButtonPlaceholder} />
+          )}
+        </View>
+
         <TodaySummaryCard summary={todaySummary} />
 
         {/* サマリーの下に 1 ボタン */}
@@ -639,7 +766,7 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         setTimeText={moodModal.setTimeText}
       />
 
-            {/* 🏃 行動 */}
+      {/* 🏃 行動 */}
       <ActivityModal
         visible={activityModal.visible}
         onRequestClose={() => {
@@ -674,7 +801,7 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         setTimeText={noteModal.setTimeText}
       />
 
-        {/* 😟 症状 */}
+      {/* 😟 症状 */}
       <SymptomModal
         visible={symptomModal.visible}
         mode={symptomModal.mode}
@@ -682,7 +809,6 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
         onConfirm={() =>
           symptomModal.confirmAndSubmit(handleAddOrUpdateSymptom)
         }
-        // 🆕 プリセット長押しで即保存
         onQuickPresetConfirm={handleQuickPresetSymptom}
         labelText={symptomModal.labelText}
         setLabelText={symptomModal.setLabelText}
@@ -765,7 +891,9 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
 
               case 'med':
                 setEditingMedEvent(event);
-                medModal.setSelectedMedType(event.medTimeSlot ?? 'morning');
+                medModal.setSelectedMedType(
+                  event.medTimeSlot ?? 'morning'
+                );
                 medModal.setSelectedMedId(event.medId ?? null);
                 medModal.setDosageText(event.dosageText ?? '');
                 medModal.setMemoText(event.memo ?? '');
@@ -793,7 +921,7 @@ export const DayEntryScreen: React.FC<Props> = ({ dateKey, headerLabel }) => {
 
 const styles = StyleSheet.create({
   safeArea: {
-    flex: 1, // 背景色は theme.colors.background で上書き
+    flex: 1,
   },
   container: {
     flex: 1,
@@ -805,6 +933,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+
+  // 🆕 ヘッダー行（＜ 前の日 | 日付 | 翌日 ＞）
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  headerNavButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    minWidth: 70,
+  },
+  headerNavButtonPlaceholder: {
+    minWidth: 70,
+  },
+  headerNavText: {
+    fontSize: 11,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+
   addEventButton: {
     alignSelf: 'center',
     marginTop: 8,

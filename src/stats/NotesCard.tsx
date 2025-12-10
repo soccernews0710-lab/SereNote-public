@@ -1,38 +1,65 @@
-// app/stats/NotesCard.tsx
-import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+// app/stats/NotesCard.tsx （または src/stats/NotesCard.tsx に配置して OK）
 
+import { useRouter } from 'expo-router';
+import React, { useMemo } from 'react';
 import {
-  buildChartPoints,
-  calcNotesSummary,
-  type StatsRow,
-} from '../../src/stats/statsLogic';
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+import type { StatsRow } from '../../src/stats/statsLogic';
 import { useTheme } from '../../src/theme/useTheme';
-import { LineChart } from './LineChart';
 
 type Props = {
   rows: StatsRow[];
   periodLabel: string;
 };
 
+/**
+ * メモ & 症状のサマリーカード
+ *
+ * ・この期間のメモ件数
+ * ・この期間の症状件数
+ * ・記録のある日数
+ * ・History へのショートカット
+ */
 export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
   const { theme } = useTheme();
+  const router = useRouter();
 
-  const notesSummary = useMemo(() => calcNotesSummary(rows), [rows]);
+  const summary = useMemo(() => {
+    let totalNotes = 0;
+    let totalSymptoms = 0;
+    let daysWithAnything = 0;
 
-  const notesPoints = useMemo(
-    () =>
-      buildChartPoints(rows, r => {
-        const total = r.notesCount + r.symptomsCount;
-        return total > 0 ? total : null;
-      }),
-    [rows]
-  );
+    rows.forEach(row => {
+      const notesCount =
+        (row as any).notesCount != null ? (row as any).notesCount : 0;
+      const symptomCount =
+        (row as any).symptomCount != null
+          ? (row as any).symptomCount
+          : (row as any).symptomsCount != null
+          ? (row as any).symptomsCount
+          : 0;
 
-  const notesYMax =
-    notesPoints.length > 0
-      ? Math.max(4, Math.max(...notesPoints.map(p => p.value)))
-      : 4;
+      totalNotes += notesCount;
+      totalSymptoms += symptomCount;
+      if (notesCount > 0 || symptomCount > 0) {
+        daysWithAnything += 1;
+      }
+    });
+
+    return {
+      totalNotes,
+      totalSymptoms,
+      daysWithAnything,
+    };
+  }, [rows]);
+
+  const hasData =
+    summary.totalNotes > 0 || summary.totalSymptoms > 0;
 
   return (
     <View
@@ -41,6 +68,7 @@ export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
         { backgroundColor: theme.colors.surface },
       ]}
     >
+      {/* ヘッダー */}
       <View style={styles.cardHeader}>
         <Text
           style={[
@@ -48,7 +76,7 @@ export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
             { color: theme.colors.textMain },
           ]}
         >
-          メモ / 症状の記録
+          メモ・症状のまとめ
         </Text>
         <Text
           style={[
@@ -60,53 +88,91 @@ export const NotesCard: React.FC<Props> = ({ rows, periodLabel }) => {
         </Text>
       </View>
 
-      <LineChart
-        color={theme.colors.accentNotes}
-        points={notesPoints}
-        yMin={0}
-        yMax={notesYMax}
-        height={140}
-        valueFormatter={v => `${v.toFixed(1)} 件`}
-      />
+      {/* 本文 */}
+      {hasData ? (
+        <>
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text
+                style={[
+                  styles.label,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                メモ
+              </Text>
+              <Text
+                style={[
+                  styles.value,
+                  { color: theme.colors.textMain },
+                ]}
+              >
+                {summary.totalNotes} 件
+              </Text>
+            </View>
 
-      <View style={styles.cardBottomRow}>
-        <View style={{ flex: 1 }}>
+            <View style={styles.col}>
+              <Text
+                style={[
+                  styles.label,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                症状の記録
+              </Text>
+              <Text
+                style={[
+                  styles.value,
+                  { color: theme.colors.textMain },
+                ]}
+              >
+                {summary.totalSymptoms} 件
+              </Text>
+            </View>
+          </View>
+
           <Text
             style={[
-              styles.cardLabel,
+              styles.helper,
               { color: theme.colors.textSub },
             ]}
           >
-            平均件数 / 日
+            何かしら記録のある日: {summary.daysWithAnything} 日
           </Text>
-          <Text
+
+          {/* History へのショートカット */}
+          <TouchableOpacity
             style={[
-              styles.cardValue,
-              { color: theme.colors.textMain },
+              styles.linkButton,
+              { borderColor: theme.colors.borderSoft },
             ]}
+            activeOpacity={0.8}
+            onPress={() => {
+              // 将来「症状だけフィルタ」を入れたら
+              // クエリ付きで /history に飛ばしてもOK
+              router.push('/history');
+            }}
           >
-            {notesSummary.avgPerDay.toFixed(2)} 件
-          </Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={[
-              styles.cardLabel,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            書いた日数
-          </Text>
-          <Text
-            style={[
-              styles.cardValue,
-              { color: theme.colors.textMain },
-            ]}
-          >
-            {notesSummary.daysWithAny} 日
-          </Text>
-        </View>
-      </View>
+            <Text
+              style={[
+                styles.linkText,
+                { color: theme.colors.textSub },
+              ]}
+            >
+              くわしく見る（Historyへ）
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <Text
+          style={[
+            styles.helper,
+            { color: theme.colors.textSub },
+          ]}
+        >
+          この期間にはメモや症状の記録がありません。
+        </Text>
+      )}
     </View>
   );
 };
@@ -136,17 +202,40 @@ const styles = StyleSheet.create({
   cardPeriodText: {
     fontSize: 12,
   },
-  cardBottomRow: {
+  row: {
     flexDirection: 'row',
-    marginTop: 10,
     gap: 12,
+    marginTop: 6,
+    marginBottom: 4,
   },
-  cardLabel: {
+  col: {
+    flex: 1,
+  },
+  label: {
     fontSize: 12,
     marginBottom: 2,
   },
-  cardValue: {
+  value: {
     fontSize: 18,
     fontWeight: '700',
   },
+  helper: {
+    fontSize: 11,
+    marginTop: 4,
+  },
+  linkButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  linkText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
 });
+
+// デフォルトエクスポートにしておくと扱いやすい場合はこれも
+export default NotesCard;

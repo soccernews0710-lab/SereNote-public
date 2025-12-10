@@ -1,4 +1,5 @@
 // src/stats/ActivityMoodCard.tsx
+import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import {
     StyleSheet,
@@ -7,86 +8,100 @@ import {
     View,
 } from 'react-native';
 
+import { useSubscription } from '../subscription/useSubscription';
 import { useTheme } from '../theme/useTheme';
 import type { StatsRow } from './statsLogic';
+
+// 小さな Pro バッジ（他のカードでも使い回せる）
+const ProBadge: React.FC = () => (
+  <View style={styles.proBadge}>
+    <Text style={styles.proBadgeText}>👑 Pro</Text>
+  </View>
+);
 
 type Props = {
   rows: StatsRow[];
   periodLabel: string;
-
-  // Pro ロック制御用
-  locked?: boolean;
-  onPressUpgrade?: () => void;
 };
-
-// 行動あり / なし で平均気分を比較
-function calcActivityMoodSummary(rows: StatsRow[]) {
-  const withAct: number[] = [];
-  const withoutAct: number[] = [];
-
-  rows.forEach(r => {
-    if (r.moodAvg == null) return;
-    if (r.activityMinutes > 0) {
-      withAct.push(r.moodAvg);
-    } else {
-      withoutAct.push(r.moodAvg);
-    }
-  });
-
-  const avg = (arr: number[]) =>
-    arr.length === 0
-      ? null
-      : arr.reduce((s, v) => s + v, 0) / arr.length;
-
-  const avgWith = avg(withAct);
-  const avgWithout = avg(withoutAct);
-
-  let diffLabel = 'データが少ないため傾向はまだ分かりません。';
-  if (avgWith != null && avgWithout != null) {
-    const diff = avgWith - avgWithout;
-
-    if (Math.abs(diff) < 0.25) {
-      diffLabel = '行動した日としなかった日で、気分の大きな差は見られません。';
-    } else if (diff >= 0.25) {
-      diffLabel =
-        '行動した日のほうが、気分スコアが少し高い傾向があります。';
-    } else {
-      diffLabel =
-        '行動しなかった日のほうが、気分スコアが少し高い傾向があります。';
-    }
-  }
-
-  return {
-    daysWithAct: withAct.length,
-    daysWithoutAct: withoutAct.length,
-    avgMoodWithAct: avgWith,
-    avgMoodWithoutAct: avgWithout,
-    diffLabel,
-  };
-}
-
-// 小数 1 桁表示用
-const formatScore = (v: number | null): string =>
-  v == null ? '—' : v.toFixed(1);
 
 export const ActivityMoodCard: React.FC<Props> = ({
   rows,
   periodLabel,
-  locked = false,
-  onPressUpgrade,
 }) => {
   const { theme } = useTheme();
+  const { isPro } = useSubscription();
+  const router = useRouter();
 
-  // 🔒 Pro ロック表示
-  if (locked) {
+  // ─────────────────────────
+  // データ集計（活動×気分）
+  // ─────────────────────────
+  const analysis = useMemo(() => {
+    // 行動が記録されていて、かつ気分スコアがある日だけ対象
+    const valid = rows.filter(
+      r => r.activityMinutes > 0 && r.moodAvg != null
+    );
+
+    if (valid.length < 3) {
+      return {
+        hasEnough: false,
+        count: valid.length,
+        highAvg: null as number | null,
+        lowAvg: null as number | null,
+        diff: null as number | null,
+      };
+    }
+
+    // ここでは仮に「60分以上=活動多い日」と定義
+    const HIGH_THRESHOLD = 60;
+
+    const highDays = valid.filter(r => r.activityMinutes >= HIGH_THRESHOLD);
+    const lowDays = valid.filter(r => r.activityMinutes < HIGH_THRESHOLD);
+
+    const avg = (xs: number[]) =>
+      xs.length === 0 ? null : xs.reduce((a, b) => a + b, 0) / xs.length;
+
+    const highAvg = avg(
+      highDays
+        .map(r => r.moodAvg)
+        .filter((v): v is number => v != null)
+    );
+    const lowAvg = avg(
+      lowDays
+        .map(r => r.moodAvg)
+        .filter((v): v is number => v != null)
+    );
+
+    let diff: number | null = null;
+    if (highAvg != null && lowAvg != null) {
+      diff = highAvg - lowAvg;
+    }
+
+    return {
+      hasEnough: true,
+      count: valid.length,
+      highAvg,
+      lowAvg,
+      diff,
+    };
+  }, [rows]);
+
+  const formatMood = (score: number | null) => {
+    if (score == null) return '—';
+    return score.toFixed(1);
+  };
+
+  // ─────────────────────────
+  // Freeユーザー用のロックUI
+  // ─────────────────────────
+  if (!isPro) {
     return (
       <View
         style={[
           styles.card,
-          styles.lockedCard,
           {
-            backgroundColor: theme.colors.surfaceAlt,
-            borderColor: theme.colors.borderSoft,
+            backgroundColor: theme.colors.card,
+            shadowColor: '#000',
+            opacity: 0.9,
           },
         ]}
       >
@@ -97,54 +112,57 @@ export const ActivityMoodCard: React.FC<Props> = ({
               { color: theme.colors.textMain },
             ]}
           >
-            行動 × 気分（Pro）
+            行動 × 気分の傾向
           </Text>
-          <View style={styles.proBadge}>
-            <Text style={styles.proBadgeText}>PRO</Text>
-          </View>
+          <ProBadge />
         </View>
 
         <Text
           style={[
-            styles.lockedText,
+            styles.lockSummary,
             { color: theme.colors.textSub },
           ]}
         >
-          {periodLabel} の
-          {'「行動した日」と「行動していない日」'}
-          の気分の違いを、自動で比較・コメントしてくれる機能です。
+          {periodLabel} の「行動時間」と「気分スコア」の関係を分析して、
+          自分らしく過ごせた日のパターンを見つけるための Pro 機能です。
         </Text>
 
-        <TouchableOpacity
-          style={[
-            styles.upgradeBtn,
-            { backgroundColor: theme.colors.primary },
-          ]}
-          onPress={onPressUpgrade}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.upgradeBtnText}>
-            Pro で詳しい分析を見る
+        <View style={styles.lockBox}>
+          <Text style={styles.lockIcon}>🔒</Text>
+          <Text style={styles.lockTitle}>このカードは Pro 機能です</Text>
+          <Text style={styles.lockDesc}>
+            ・行動が多い日の平均気分{'\n'}
+            ・ゆっくり過ごした日の平均気分{'\n'}
+            ・その差（どんな日が「楽」だったか）
+            {'\n\n'}
+            などが自動でまとまります。
           </Text>
-        </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.lockButton}
+            onPress={() =>
+              router.push('/settings/user-settings-subscription')
+            }
+          >
+            <Text style={styles.lockButtonText}>
+              SereNote Pro について見る
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
-  // 🔓 Pro ユーザー向けの本体
-  const summary = useMemo(
-    () => calcActivityMoodSummary(rows),
-    [rows]
-  );
+  // ─────────────────────────
+  // Proユーザー用の表示
+  // ─────────────────────────
+  const { hasEnough, count, highAvg, lowAvg, diff } = analysis;
 
   return (
     <View
       style={[
         styles.card,
-        {
-          backgroundColor: theme.colors.card,
-          shadowColor: '#000',
-        },
+        { backgroundColor: theme.colors.card, shadowColor: '#000' },
       ]}
     >
       <View style={styles.headerRow}>
@@ -154,115 +172,108 @@ export const ActivityMoodCard: React.FC<Props> = ({
             { color: theme.colors.textMain },
           ]}
         >
-          行動 × 気分（{periodLabel}）
+          行動 × 気分の傾向
         </Text>
-        <View style={styles.proBadge}>
-          <Text style={styles.proBadgeText}>PRO</Text>
-        </View>
+        <ProBadge />
       </View>
 
       <Text
         style={[
-          styles.caption,
+          styles.subtitle,
           { color: theme.colors.textSub },
         ]}
       >
-        行動した日と、ほとんど動かなかった日の「平均気分スコア」を比べています。
+        {periodLabel} に記録された「行動時間」と「気分」から、
+        あなたに合う過ごし方のヒントをまとめました。
       </Text>
 
-      <View style={styles.statsRow}>
-        <View style={styles.statsCol}>
-          <Text
-            style={[
-              styles.label,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            行動した日数
-          </Text>
-          <Text
-            style={[
-              styles.value,
-              { color: theme.colors.textMain },
-            ]}
-          >
-            {summary.daysWithAct} 日
-          </Text>
-          <Text
-            style={[
-              styles.smallLabel,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            平均気分
-          </Text>
-          <Text
-            style={[
-              styles.valueBig,
-              { color: theme.colors.accentGreen },
-            ]}
-          >
-            {formatScore(summary.avgMoodWithAct)}
-          </Text>
-        </View>
+      {!hasEnough ? (
+        <Text
+          style={[
+            styles.helperText,
+            { color: theme.colors.textSub },
+          ]}
+        >
+          まだ十分なデータがありません。行動と気分の記録が
+          もう少し貯まると傾向が表示されます（いま {count} 日分）。
+        </Text>
+      ) : (
+        <>
+          <View style={styles.row}>
+            <View style={styles.statBox}>
+              <Text
+                style={[
+                  styles.statLabel,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                行動が多い日
+                {'\n'}
+                （60分以上）
+              </Text>
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: theme.colors.textMain },
+                ]}
+              >
+                {formatMood(highAvg)}
+              </Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text
+                style={[
+                  styles.statLabel,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                行動が少ない日
+                {'\n'}
+                （60分未満）
+              </Text>
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: theme.colors.textMain },
+                ]}
+              >
+                {formatMood(lowAvg)}
+              </Text>
+            </View>
+          </View>
 
-        <View style={styles.divider} />
-
-        <View style={styles.statsCol}>
-          <Text
-            style={[
-              styles.label,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            行動なしの日数
-          </Text>
-          <Text
-            style={[
-              styles.value,
-              { color: theme.colors.textMain },
-            ]}
-          >
-            {summary.daysWithoutAct} 日
-          </Text>
-          <Text
-            style={[
-              styles.smallLabel,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            平均気分
-          </Text>
-          <Text
-            style={[
-              styles.valueBig,
-              { color: theme.colors.accentBlue },
-            ]}
-          >
-            {formatScore(summary.avgMoodWithoutAct)}
-          </Text>
-        </View>
-      </View>
-
-      <Text
-        style={[
-          styles.comment,
-          { color: theme.colors.textMain },
-        ]}
-      >
-        {summary.diffLabel}
-      </Text>
-
-      <Text
-        style={[
-          styles.helper,
-          { color: theme.colors.textSub },
-        ]}
-      >
-        ※ あくまで自分の記録から見た傾向です。
-        無理に行動を増やすのではなく、「どのくらい動くと自分は楽か」を知るための
-        参考情報として使ってください。
-      </Text>
+          <View style={styles.resultBox}>
+            {diff != null ? (
+              <>
+                {diff > 0.2 && (
+                  <Text style={styles.resultLine}>
+                    ✅ 行動が多い日のほうが、平均して気分が少し良さそうです。
+                  </Text>
+                )}
+                {diff < -0.2 && (
+                  <Text style={styles.resultLine}>
+                    🌿 ゆっくり過ごした日のほうが、平均して気分が落ち着いていそうです。
+                  </Text>
+                )}
+                {Math.abs(diff) <= 0.2 && (
+                  <Text style={styles.resultLine}>
+                    ⚖️ 行動の多さと気分の差はあまり大きくなさそうです。
+                    「どんな予定か」のほうが影響しているかもしれません。
+                  </Text>
+                )}
+                <Text style={styles.resultSub}>
+                  （差分: {diff.toFixed(2)} ポイント / {count} 日分のデータ）
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.resultLine}>
+                データはありますが、行動が多い日・少ない日の両方が揃っていないため、
+                差分はまだ出せません。
+              </Text>
+            )}
+          </View>
+        </>
+      )}
     </View>
   );
 };
@@ -277,91 +288,114 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 6,
     elevation: 1,
-    borderWidth: 1,
-  },
-  lockedCard: {
-    borderStyle: 'dashed',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   title: {
     fontSize: 14,
     fontWeight: '700',
   },
-  caption: {
-    fontSize: 11,
+  subtitle: {
+    fontSize: 12,
     marginBottom: 8,
   },
+  helperText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  // Proバッジ
   proBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#EEF2FF',
   },
   proBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  lockedText: {
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 4,
-    marginBottom: 10,
-  },
-  upgradeBtn: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    marginTop: 4,
-  },
-  upgradeBtnText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#FFF',
+    color: '#4F46E5',
   },
-  statsRow: {
-    flexDirection: 'row',
-    marginTop: 4,
+  // Free ロックUI
+  lockSummary: {
+    fontSize: 12,
     marginBottom: 8,
   },
-  statsCol: {
-    flex: 1,
+  lockBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 10,
+    backgroundColor: '#F9FAFB',
   },
-  divider: {
-    width: 1,
-    marginHorizontal: 10,
-    backgroundColor: '#E5E7EB',
+  lockIcon: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 4,
   },
-  label: {
-    fontSize: 11,
-    marginBottom: 2,
-  },
-  value: {
+  lockTitle: {
     fontSize: 13,
     fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
   },
-  smallLabel: {
-    fontSize: 10,
-    marginTop: 6,
+  lockDesc: {
+    fontSize: 11,
+    color: '#4B5563',
+    marginBottom: 8,
   },
-  valueBig: {
+  lockButton: {
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#4F46E5',
+  },
+  lockButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  // Pro 表示用
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  statBox: {
+    flex: 1,
+    marginRight: 6,
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: '#F9FAFB',
+  },
+  statLabel: {
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  statValue: {
     fontSize: 18,
     fontWeight: '700',
-    marginTop: 2,
   },
-  comment: {
+  resultBox: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: '#F3F4FF',
+  },
+  resultLine: {
     fontSize: 12,
-    lineHeight: 18,
-    marginTop: 4,
+    marginBottom: 4,
+    color: '#111827',
   },
-  helper: {
-    fontSize: 10,
-    marginTop: 6,
+  resultSub: {
+    fontSize: 11,
+    color: '#4B5563',
   },
 });
+
+export default ActivityMoodCard;

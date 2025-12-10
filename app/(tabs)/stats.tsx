@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 
@@ -32,21 +33,21 @@ import { DoctorNotesSection } from '../../src/stats/DoctorNotesSection';
 import { ExportAllSection } from '../../src/stats/ExportAllSection';
 import { MedsCard } from '../../src/stats/MedsCard';
 import { MoodCard } from '../../src/stats/MoodCard';
-import { NotesCard } from '../../src/stats/NotesCard';
 import { SleepCard } from '../../src/stats/SleepCard';
 import { StatsHeader } from '../../src/stats/StatsHeader';
-// 🆕 行動時間カード
+// 行動時間カード（Pro 用）
 import { ActivityCard } from '../../src/stats/ActivityCard';
-// 🆕 行動 × 気分カード（Pro 機能）
+// 行動 × 気分カード（Pro 用）
 import { ActivityMoodCard } from '../../src/stats/ActivityMoodCard';
-// 🆕 サブスク状態
-import { useSubscription } from '../../src/subscription/useSubscription';
 
 import {
   buildStatsRowsForPeriod,
   collectDoctorSymptoms,
   type StatsPeriod,
 } from '../../src/stats/statsLogic';
+
+// 🆕 サブスクリプション情報
+import { useSubscription } from '../../src/subscription/useSubscription';
 
 export default function StatsScreen() {
   const { theme } = useTheme();
@@ -65,7 +66,7 @@ export default function StatsScreen() {
   // CSV 用のエスケープ
   const escapeCsv = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
-  // SerenoteEntryMap → CSV テキスト
+  // SerenoteEntryMap → 「1行=1イベント」の詳細CSV
   const buildCsvFromEntries = (entries: SerenoteEntryMap): string => {
     const header = [
       'date',
@@ -332,7 +333,7 @@ export default function StatsScreen() {
     }
   };
 
-  // ========= 4) 全イベント CSV エクスポート =========
+  // ========= 4) 全イベント CSV エクスポート（詳細） =========
 
   const handleExportAllCsv = async () => {
     const hasData = Object.keys(allEntries).length > 0;
@@ -367,6 +368,132 @@ export default function StatsScreen() {
       Alert.alert(
         'エラー',
         'CSV エクスポートに失敗しました。もう一度お試しください。'
+      );
+    }
+  };
+
+  // ========= 5) 週間活動記録表 CSV（7日分） =========
+
+  const handleExportWeeklySheetCsv = async () => {
+    const dateKeys = Object.keys(allEntries).sort(); // YYYY-MM-DD でソート
+    if (dateKeys.length === 0) {
+      Alert.alert('データがありません', 'まだ記録がありません。');
+      return;
+    }
+
+    try {
+      const baseDir = resolveBaseDir();
+      if (!baseDir) {
+        Alert.alert(
+          'エクスポートできません',
+          '保存先ディレクトリを取得できませんでした。'
+        );
+        return;
+      }
+
+      // 直近7日ぶんだけを対象（少なければその分だけ）
+      const targetDates = dateKeys.slice(-7);
+
+      // 日付 + 曜日のラベル
+      const weekdayLabels = ['日', '月', '火', '水', '木', '金', '土'];
+      const formattedDates = targetDates.map(d => {
+        const [y, m, day] = d.split('-').map(Number);
+        const dt = new Date(y, (m ?? 1) - 1, day ?? 1);
+        const w = weekdayLabels[dt.getDay()] ?? '';
+        return `${m}/${day}(${w})`;
+      });
+
+      // 時間帯ラベル（0〜23時）
+      const slotLabels = [
+        '午前0〜1時',
+        '午前1〜2時',
+        '午前2〜3時',
+        '午前3〜4時',
+        '午前4〜5時',
+        '午前5〜6時',
+        '午前6〜7時',
+        '午前7〜8時',
+        '午前8〜9時',
+        '午前9〜10時',
+        '午前10〜11時',
+        '午前11〜12時',
+        '正午〜1時',
+        '午後1〜2時',
+        '午後2〜3時',
+        '午後3〜4時',
+        '午後4〜5時',
+        '午後5〜6時',
+        '午後6〜7時',
+        '午後7〜8時',
+        '午後8〜9時',
+        '午後9〜10時',
+        '午後10〜11時',
+        '午後11〜0時',
+      ];
+
+      // [時間帯インデックス][日付インデックス] = セル文字列
+      const table: string[][] = Array.from({ length: 24 }, () =>
+        Array(targetDates.length).fill('')
+      );
+
+      // 各日付×イベントをマスに詰める
+      targetDates.forEach((dateKey, colIndex) => {
+        const entry = allEntries[dateKey as DateKey] as SerenoteEntry;
+        const events: TimelineEvent[] =
+          (entry as any).timelineEvents ?? [];
+
+        events.forEach(ev => {
+          if (!ev.time) return;
+          const hour = Number(ev.time.split(':')[0]);
+          if (Number.isNaN(hour) || hour < 0 || hour > 23) return;
+
+          // セルに入れるテキスト：基本はラベル、なければ type
+          let base = ev.label || ev.type;
+          // メモがある場合は少しだけ付け足す（長すぎるのはカット）
+          if (ev.memo) {
+            const short =
+              ev.memo.length > 20
+                ? `${ev.memo.slice(0, 20)}…`
+                : ev.memo;
+            base = `${base} (${short})`;
+          }
+
+          if (!base) return;
+
+          const existing = table[hour][colIndex];
+          table[hour][colIndex] = existing
+            ? `${existing} / ${base}`
+            : base;
+        });
+      });
+
+      // CSV の構築
+      const header = ['時間帯', ...formattedDates]
+        .map(escapeCsv)
+        .join(',');
+      const lines: string[] = [header];
+
+      slotLabels.forEach((label, rowIndex) => {
+        const row = [label, ...table[rowIndex]];
+        lines.push(row.map(escapeCsv).join(','));
+      });
+
+      const csvText = lines.join('\n');
+      const fileUri =
+        baseDir + `serenote-weekly-activities-${Date.now()}.csv`;
+
+      await FileSystem.writeAsStringAsync(fileUri, csvText);
+
+      await shareFile(
+        fileUri,
+        'text/csv',
+        '週間活動記録表(CSV)を共有'
+      );
+    } catch (e) {
+      console.warn('Export weekly sheet CSV failed', e);
+      Alert.alert(
+        'エラー',
+        '週間活動記録表のCSVエクスポートに失敗しました。もう一度お試しください。'
       );
     }
   };
@@ -406,8 +533,13 @@ export default function StatsScreen() {
       ]}
     >
       <View style={styles.container}>
-        {/* タイトル + 期間スイッチ */}
-        <StatsHeader period={period} onChangePeriod={setPeriod} />
+        {/* タイトル + 期間スイッチ（7日 / 30日 / 90日） */}
+        <StatsHeader
+          period={period}
+          onChangePeriod={setPeriod}
+          isPro={isPro}
+          onPressUpgrade={openProPaywall}
+        />
 
         <ScrollView
           contentContainerStyle={{ paddingBottom: 32 }}
@@ -416,20 +548,34 @@ export default function StatsScreen() {
           {/* 期間サマリー */}
           <OverviewCard rows={rows} periodLabel={periodLabel} />
 
-          {/* 各カード（気分 / 睡眠 / 行動 / 行動×気分 / 服薬 / メモ） */}
+          {/* 気分の傾向 */}
           <MoodCard rows={rows} periodLabel={periodLabel} />
+
+          {/* 睡眠パターン */}
           <SleepCard rows={rows} periodLabel={periodLabel} />
-          {/* 行動時間 → Free */}
-          <ActivityCard rows={rows} periodLabel={periodLabel} />
-          {/* 行動 × 気分 → Pro 機能 */}
-          <ActivityMoodCard
-            rows={rows}
-            periodLabel={periodLabel}
-            locked={!isPro}
-            onPressUpgrade={openProPaywall}
-          />
+
+          {/* 服薬サマリー（グラフは残すが、Pro に寄せたいなら後で切る） */}
           <MedsCard rows={rows} periodLabel={periodLabel} />
-          <NotesCard rows={rows} periodLabel={periodLabel} />
+
+          {/* 🟣 Pro 限定：行動時間 / 行動 × 気分 */}
+          {isPro ? (
+            <>
+              <ActivityCard rows={rows} periodLabel={periodLabel} />
+              <ActivityMoodCard
+                rows={rows}
+                periodLabel={periodLabel}
+              />
+            </>
+          ) : (
+            <ProFeatureTeaser
+              title="行動と気分のくわしい関係"
+              description={
+                'SereNote Pro では、行動カテゴリーごとの時間や\n' +
+                '「どんな日に気分が落ち込みやすいか」をグラフで確認できます。'
+              }
+              onPressUpgrade={openProPaywall}
+            />
+          )}
 
           {/* 診察で話したいメモ一覧 */}
           <DoctorNotesSection
@@ -438,16 +584,74 @@ export default function StatsScreen() {
             onReset={handleResetDoctorSymptoms}
           />
 
-          {/* 全データエクスポート（CSV / JSON） */}
+          {/* 全データエクスポート（週間表 / 詳細CSV / JSON） */}
           <ExportAllSection
             onExportCsv={handleExportAllCsv}
             onExportJson={handleExportAllJson}
+            onExportWeeklyCsv={handleExportWeeklySheetCsv}
           />
         </ScrollView>
       </View>
     </SafeAreaView>
   );
 }
+
+// ========= Pro 機能ティーザーカード =========
+type ProFeatureTeaserProps = {
+  title: string;
+  description: string;
+  onPressUpgrade: () => void;
+};
+
+const ProFeatureTeaser: React.FC<ProFeatureTeaserProps> = ({
+  title,
+  description,
+  onPressUpgrade,
+}) => {
+  const { theme } = useTheme();
+
+  return (
+    <View
+      style={[
+        styles.proTeaserCard,
+        {
+          backgroundColor: theme.colors.surfaceAlt,
+          borderColor: theme.colors.borderSoft,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.proTeaserTitle,
+          { color: theme.colors.textMain },
+        ]}
+      >
+        🔒 {title}
+      </Text>
+      <Text
+        style={[
+          styles.proTeaserDescription,
+          { color: theme.colors.textSub },
+        ]}
+      >
+        {description}
+      </Text>
+
+      <TouchableOpacity
+        style={[
+          styles.proTeaserButton,
+          { backgroundColor: theme.colors.primary },
+        ]}
+        onPress={onPressUpgrade}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.proTeaserButtonText}>
+          SereNote Pro について見る
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 // ========= スタイル（画面共通） =========
 const styles = StyleSheet.create({
@@ -467,5 +671,35 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 8,
     fontSize: 13,
+  },
+
+  // Pro ティーザーカード
+  proTeaserCard: {
+    marginTop: 16,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+  },
+  proTeaserTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  proTeaserDescription: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  proTeaserButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  proTeaserButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

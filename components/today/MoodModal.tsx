@@ -1,11 +1,16 @@
 // components/today/MoodModal.tsx
 import React from 'react';
 import {
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import type { MoodValue } from '../../hooks/useMoodModal';
@@ -53,52 +58,66 @@ const MoodModal: React.FC<Props> = ({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <Text style={styles.title}>今日の気分</Text>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={80}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.backdrop}>
+            <View style={styles.card}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.title}>今日の気分</Text>
 
-          {/* 🕒 時間（スロット式） */}
-          <Text style={styles.label}>時間</Text>
-          <TimePicker value={timeText} onChange={setTimeText} />
+                {/* 🕒 時間（スロット式） */}
+                <Text style={styles.label}>時間</Text>
+                <TimePicker value={timeText} onChange={setTimeText} />
 
-          <Text style={styles.label}>一番近いものを選んでください</Text>
+                <Text style={styles.label}>一番近いものを選んでください</Text>
 
-          <View style={styles.row}>
-            {renderMoodChip(-2 as MoodValue, 'とてもつらい', '😭')}
-            {renderMoodChip(-1 as MoodValue, 'つらい', '😣')}
+                <View style={styles.row}>
+                  {renderMoodChip(-2 as MoodValue, 'とてもつらい', '😭')}
+                  {renderMoodChip(-1 as MoodValue, 'つらい', '😣')}
+                </View>
+                <View style={styles.row}>
+                  {renderMoodChip(0 as MoodValue, 'ふつう', '😐')}
+                  {renderMoodChip(1 as MoodValue, '少し良い', '🙂')}
+                  {renderMoodChip(2 as MoodValue, 'とても良い', '😄')}
+                </View>
+
+                <Text style={styles.label}>メモ（任意）</Text>
+                <TextInput
+                  style={[styles.input, styles.inputMulti]}
+                  multiline
+                  placeholder="例：朝はしんどかったけど、夕方から少し楽になった"
+                  value={memoText}
+                  onChangeText={setMemoText}
+                  textAlignVertical="top"
+                />
+              </ScrollView>
+
+              <View style={styles.footerRow}>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonCancel]}
+                  onPress={onRequestClose}
+                >
+                  <Text style={styles.buttonTextCancel}>キャンセル</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonPrimary]}
+                  onPress={onConfirm}
+                >
+                  <Text style={styles.buttonTextPrimary}>記録する</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-          <View style={styles.row}>
-            {renderMoodChip(0 as MoodValue, 'ふつう', '😐')}
-            {renderMoodChip(1 as MoodValue, '少し良い', '🙂')}
-            {renderMoodChip(2 as MoodValue, 'とても良い', '😄')}
-          </View>
-
-          <Text style={styles.label}>メモ（任意）</Text>
-          <TextInput
-            style={[styles.input, styles.inputMulti]}
-            multiline
-            placeholder="例：朝はしんどかったけど、夕方から少し楽になった"
-            value={memoText}
-            onChangeText={setMemoText}
-            textAlignVertical="top"
-          />
-
-          <View style={styles.footerRow}>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonCancel]}
-              onPress={onRequestClose}
-            >
-              <Text style={styles.buttonTextCancel}>キャンセル</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonPrimary]}
-              onPress={onConfirm}
-            >
-              <Text style={styles.buttonTextPrimary}>記録する</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -106,6 +125,9 @@ const MoodModal: React.FC<Props> = ({
 export default MoodModal;
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -118,6 +140,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#FFF',
     padding: 16,
+    maxHeight: '90%',
+  },
+  scrollContent: {
+    paddingBottom: 8,
   },
   title: {
     fontSize: 16,

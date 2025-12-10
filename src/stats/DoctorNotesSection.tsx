@@ -1,5 +1,5 @@
 // app/stats/DoctorNotesSection.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -24,6 +24,31 @@ export const DoctorNotesSection: React.FC<Props> = ({
   const { theme } = useTheme();
   const disabled = doctorSymptoms.length === 0;
 
+  // 直近のメモ（最大3件）だけプレビュー表示
+  const { count, previewItems, restCount } = useMemo(() => {
+    const count = doctorSymptoms.length;
+
+    if (count === 0) {
+      return { count: 0, previewItems: [] as DoctorSymptomItem[], restCount: 0 };
+    }
+
+    // 日付（YYYY-MM-DD）と time で新しい順にソート
+    const sorted = [...doctorSymptoms].sort((a, b) => {
+      if (a.date < b.date) return 1;
+      if (a.date > b.date) return -1;
+      const ta = a.time ?? '';
+      const tb = b.time ?? '';
+      if (ta < tb) return 1;
+      if (ta > tb) return -1;
+      return 0;
+    });
+
+    const previewItems = sorted.slice(0, 3);
+    const restCount = count > 3 ? count - 3 : 0;
+
+    return { count, previewItems, restCount };
+  }, [doctorSymptoms]);
+
   return (
     <View
       style={[
@@ -34,9 +59,9 @@ export const DoctorNotesSection: React.FC<Props> = ({
         },
       ]}
     >
-      {/* 見出し + ボタン */}
+      {/* 見出し + 件数 + ボタン */}
       <View style={styles.headerRow}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text
             style={[
               styles.sectionTitle,
@@ -45,17 +70,30 @@ export const DoctorNotesSection: React.FC<Props> = ({
           >
             診察で話したい症状メモ
           </Text>
+
           <Text
             style={[
               styles.sectionSub,
               { color: theme.colors.textSub },
             ]}
           >
-            「診察で話したい」にチェックした症状がここにまとまります
+            「診察で話したい」にチェックした症状のメモをまとめて確認できます。
           </Text>
+
+          <View style={styles.countPill}>
+            <Text
+              style={[
+                styles.countText,
+                { color: theme.colors.textSub },
+              ]}
+            >
+              現在 {count} 件
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.actionsRow}>
+        {/* 右上の操作ボタン */}
+        <View style={styles.actionsColumn}>
           {/* エクスポート */}
           <TouchableOpacity
             onPress={onExport}
@@ -110,54 +148,71 @@ export const DoctorNotesSection: React.FC<Props> = ({
       </View>
 
       {/* 本文エリア */}
-      {doctorSymptoms.length === 0 ? (
+      {count === 0 ? (
         <Text
           style={[
             styles.emptyText,
             { color: theme.colors.textSub },
           ]}
         >
-          「症状」追加モーダルで「診察で話したい」にチェックすると、
+          「症状」の記録画面で「診察で話したい」にチェックすると、
           ここに一覧で表示されます。
         </Text>
       ) : (
-        doctorSymptoms.map(item => (
-          <View
-            key={item.id}
-            style={[
-              styles.symptomCard,
-              { borderBottomColor: theme.colors.borderSoft },
-            ]}
-          >
-            <Text
+        <>
+          {/* 直近3件だけプレビュー */}
+          {previewItems.map(item => (
+            <View
+              key={item.id}
               style={[
-                styles.dateText,
-                { color: theme.colors.textSub },
+                styles.symptomCard,
+                { borderBottomColor: theme.colors.borderSoft },
               ]}
             >
-              {item.date}
-              {item.time ? `  ${item.time}` : ''}
-            </Text>
-            <Text
-              style={[
-                styles.labelText,
-                { color: theme.colors.textMain },
-              ]}
-            >
-              {item.label}
-            </Text>
-            {item.memo ? (
               <Text
                 style={[
-                  styles.memoText,
+                  styles.dateText,
                   { color: theme.colors.textSub },
                 ]}
               >
-                {item.memo}
+                {item.date}
+                {item.time ? `  ${item.time}` : ''}
               </Text>
-            ) : null}
-          </View>
-        ))
+              <Text
+                style={[
+                  styles.labelText,
+                  { color: theme.colors.textMain },
+                ]}
+              >
+                {item.label}
+              </Text>
+              {item.memo ? (
+                <Text
+                  style={[
+                    styles.memoText,
+                    { color: theme.colors.textSub },
+                  ]}
+                >
+                  {item.memo}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+
+          {/* 他にまだある場合 */}
+          {restCount > 0 && (
+            <Text
+              style={[
+                styles.moreText,
+                { color: theme.colors.textSub },
+              ]}
+            >
+              ほか {restCount} 件のメモがあります。
+              {'\n'}
+              詳しくは History から「症状」の記録を確認してください。
+            </Text>
+          )}
+        </>
       )}
     </View>
   );
@@ -172,9 +227,8 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 8,
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   sectionTitle: {
     fontSize: 15,
@@ -183,10 +237,27 @@ const styles = StyleSheet.create({
   sectionSub: {
     marginTop: 2,
     fontSize: 11,
+    lineHeight: 16,
   },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 8,
+  countPill: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(148, 163, 184, 0.15)', // tailwind slate-400-ish
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  actionsColumn: {
+    marginLeft: 8,
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+    gap: 6,
   },
   actionButton: {
     paddingHorizontal: 10,
@@ -206,7 +277,7 @@ const styles = StyleSheet.create({
   symptomCard: {
     paddingVertical: 8,
     borderBottomWidth: 1,
-    marginTop: 6,
+    marginTop: 4,
   },
   dateText: {
     fontSize: 12,
@@ -220,4 +291,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 12,
   },
+  moreText: {
+    marginTop: 8,
+    fontSize: 11,
+    lineHeight: 16,
+  },
 });
+
+export default DoctorNotesSection;
