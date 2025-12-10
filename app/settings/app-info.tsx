@@ -2,11 +2,11 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TermsOfUseContent from '../../components/settings/TermsOfUseContent';
@@ -82,6 +82,53 @@ export default function AppInfoScreen() {
           <TermsOfUseContent />
         </View>
 
+        {/* 医療行為ではないこと・緊急時のお願い */}
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.colors.textMain },
+          ]}
+        >
+          医療行為ではないこと・緊急時のお願い
+        </Text>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.colors.card },
+          ]}
+        >
+          <Text
+            style={[
+              styles.cardText,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            ・SereNote は、こころやからだの状態を振り返るための
+              自己記録アプリです。医師・看護師・臨床心理士などの
+              専門家による診療やカウンセリングの代わりにはなりません。
+          </Text>
+          <Text
+            style={[
+              styles.cardText,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            ・アプリ内の表示内容やタイムラインの投稿は、
+              いずれも診断・治療・予防を約束するものではありません。
+              治療中の方は、必ず主治医など専門家の指示を優先してください。
+          </Text>
+          <Text
+            style={[
+              styles.cardText,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            ・「今すぐ命の危険を感じる」「自分や他人を傷つけてしまいそう」など、
+              緊急の状況では、このアプリでは対応できません。
+              そのような場合は、救急や地域の相談窓口などの公的な支援につながってください。
+          </Text>
+        </View>
+
         {/* プライバシーポリシー */}
         <Text
           style={[
@@ -103,8 +150,9 @@ export default function AppInfoScreen() {
               { color: theme.colors.textMain },
             ]}
           >
-            SereNote は、ユーザーが入力した記録データ（睡眠・気分・症状・お薬・メモなど）を
-            すべて端末ローカルに保存し、サーバーへ送信しません。
+            SereNote では、ユーザーが入力した記録データのうち、
+            日々の睡眠・気分・症状・お薬・メモなどの情報は
+            原則として端末ローカル（お使いのスマートフォン内）に保存されます。
           </Text>
           <Text
             style={[
@@ -112,9 +160,8 @@ export default function AppInfoScreen() {
               { color: theme.colors.textMain },
             ]}
           >
-            当事業者が取得する可能性のある情報は、ユーザーからの問い合わせ時に送信される
-            メールアドレスや内容に限られます。これらはサポート対応のためにのみ利用し、
-            一定期間経過後に削除します。
+            一方で、以下の情報については、アプリの機能を提供するために
+            Google のクラウドサービス（Firebase）上に保存されることがあります：
           </Text>
           <Text
             style={[
@@ -122,8 +169,30 @@ export default function AppInfoScreen() {
               { color: theme.colors.textMain },
             ]}
           >
-            将来的に広告やサブスクリプション機能を導入する場合は、このポリシーを更新し、
-            アプリ内で明示的にお知らせします。
+            ・プロフィール情報（ニックネーム / 性別 / 年代 / プロフィール画像のURL など）
+            {'\n'}
+            ・タイムラインへの投稿内容（画像・一言メッセージ・投稿者のニックネームなど）
+            {'\n'}
+            ・ユーザーを識別するための匿名の ID（Firebase Auth の UID）
+          </Text>
+          <Text
+            style={[
+              styles.cardText,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            これらの情報は、アプリの表示・タイムライン機能の提供・
+            統計的な分析によるサービス改善のためにのみ利用されます。
+            個人を特定できる形で第三者に販売することはありません。
+          </Text>
+          <Text
+            style={[
+              styles.cardText,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            将来的に広告や追加のサブスクリプション機能を導入する場合は、
+            本ポリシーを更新し、アプリ内で明示的にお知らせします。
           </Text>
         </View>
 
@@ -148,7 +217,9 @@ export default function AppInfoScreen() {
               { color: theme.colors.textMain },
             ]}
           >
-            ・記録データ（睡眠・気分・症状・お薬・メモなど）は、すべて端末内にのみ保存されます。
+            ・日々の記録（睡眠・気分・症状・お薬・メモなど）は、
+              端末内のストレージに保存され、ユーザーの操作なく
+              自動的に外部へ送信されることはありません。
           </Text>
           <Text
             style={[
@@ -156,7 +227,10 @@ export default function AppInfoScreen() {
               { color: theme.colors.textMain },
             ]}
           >
-            ・当事業者は、ユーザーの健康データや記録内容をサーバーに保存・解析・共有しません。
+            ・プロフィール情報やタイムラインへの投稿は、
+              Firebase（Firestore / Storage）に保存され、
+              アプリの機能提供のために利用されます。
+              これらは安全な通信経路で送信されます。
           </Text>
           <Text
             style={[
@@ -164,7 +238,19 @@ export default function AppInfoScreen() {
               { color: theme.colors.textMain },
             ]}
           >
-            ・必要に応じて、ユーザーご自身でバックアップ（スクリーンショットや将来のエクスポート機能など）を行ってください。
+            ・ユーザーは、プロフィール編集や投稿削除機能を通じて、
+              自身のニックネームやプロフィール画像、投稿内容を
+              いつでも変更・削除することができます。
+          </Text>
+          <Text
+            style={[
+              styles.cardText,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            ・バックアップが必要な場合は、
+              スクリーンショットや、今後追加予定の
+              データエクスポート機能などをご利用ください。
           </Text>
         </View>
 
@@ -205,7 +291,8 @@ export default function AppInfoScreen() {
               { color: theme.colors.textMain },
             ]}
           >
-            通知の設定に関する情報は端末内で管理され、サーバーには送信されません。
+            通知に関する設定情報は端末内で管理され、
+            当事業者のサーバーには送信されません。
           </Text>
         </View>
 
@@ -288,7 +375,27 @@ export default function AppInfoScreen() {
               { color: theme.colors.textMain },
             ]}
           >
-            ・直近7日 / 14日 / 30日を切り替えて、気分・睡眠・服薬状況・メモ/症状の量を振り返れます。
+            ・直近7日 / 14日 / 30日を切り替えて、
+              気分・睡眠・服薬状況・メモ/症状の量を振り返れます。
+          </Text>
+
+          <Text
+            style={[
+              styles.guideTitle,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            Timeline（タイムライン）タブ
+          </Text>
+          <Text
+            style={[
+              styles.cardText,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            ・好きな画像と100文字までの一言で、
+              そのときの気持ちや出来事をゆるくシェアできます。
+              他のユーザーの投稿も閲覧できます。
           </Text>
 
           <Text
@@ -305,7 +412,8 @@ export default function AppInfoScreen() {
               { color: theme.colors.textMain },
             ]}
           >
-            ・ニックネームやお薬・リマインド時刻の設定、アプリ情報の確認ができます。
+            ・ニックネームやプロフィール、テーマカラー、
+              お薬・リマインド時刻の設定、アプリ情報の確認ができます。
           </Text>
         </View>
 
@@ -325,6 +433,15 @@ export default function AppInfoScreen() {
             ]}
           >
             所在地：日本
+          </Text>
+          <Text
+            style={[
+              styles.footerTextSmall,
+              { color: theme.colors.textSub },
+            ]}
+          >
+            ※本画面の内容は、将来的に正式な利用規約・
+              プライバシーポリシーとして更新される予定です。
           </Text>
         </View>
       </ScrollView>
@@ -393,5 +510,10 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 11,
+  },
+  footerTextSmall: {
+    fontSize: 10,
+    marginTop: 4,
+    lineHeight: 14,
   },
 });

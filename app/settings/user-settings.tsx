@@ -39,8 +39,7 @@ export default function UserSettingsMenuScreen() {
             { color: theme.colors.textSub },
           ]}
         >
-          テーマカラーやニックネーム、お薬設定、データの出力などを
-          ここから設定できます。
+          アプリの表示や動作、個人設定をここから変更できます。
         </Text>
 
         {/* メニュー一覧 */}
@@ -53,6 +52,44 @@ export default function UserSettingsMenuScreen() {
           >
             項目
           </Text>
+
+          {/* ✅ プロフィール（新設） */}
+          <TouchableOpacity
+            style={[
+              styles.itemCard,
+              { backgroundColor: theme.colors.card },
+            ]}
+            onPress={() =>
+              router.push('/settings/user-settings-profile')
+            }
+          >
+            <View style={styles.itemTextBox}>
+              <Text
+                style={[
+                  styles.itemTitle,
+                  { color: theme.colors.textMain },
+                ]}
+              >
+                プロフィール
+              </Text>
+              <Text
+                style={[
+                  styles.itemSubtitle,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                ニックネーム・性別・年代・使い方の傾向を設定します。
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.itemChevron,
+                { color: theme.colors.textSub },
+              ]}
+            >
+              ›
+            </Text>
+          </TouchableOpacity>
 
           {/* サブスクリプション / SereNote Pro */}
           <TouchableOpacity
@@ -79,7 +116,7 @@ export default function UserSettingsMenuScreen() {
                   { color: theme.colors.textSub },
                 ]}
               >
-                現在のプラン確認・Proへの切り替え（将来的に課金画面と連動）を行います。
+                現在のプラン確認・Proへの切り替えを行います。
               </Text>
             </View>
             <Text
@@ -117,7 +154,7 @@ export default function UserSettingsMenuScreen() {
                   { color: theme.colors.textSub },
                 ]}
               >
-                FaceID / PIN でアプリを保護します。
+                Face ID / PIN でアプリを保護します。
               </Text>
             </View>
             <Text
@@ -168,45 +205,7 @@ export default function UserSettingsMenuScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* ニックネーム */}
-          <TouchableOpacity
-            style={[
-              styles.itemCard,
-              { backgroundColor: theme.colors.card },
-            ]}
-            onPress={() =>
-              router.push('/settings/user-settings-nickname')
-            }
-          >
-            <View style={styles.itemTextBox}>
-              <Text
-                style={[
-                  styles.itemTitle,
-                  { color: theme.colors.textMain },
-                ]}
-              >
-                ニックネーム
-              </Text>
-              <Text
-                style={[
-                  styles.itemSubtitle,
-                  { color: theme.colors.textSub },
-                ]}
-              >
-                SereNote 内での表示名を変更できます。
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.itemChevron,
-                { color: theme.colors.textSub },
-              ]}
-            >
-              ›
-            </Text>
-          </TouchableOpacity>
-
-          {/* 通知設定（プレースホルダー） */}
+          {/* 通知設定 */}
           <TouchableOpacity
             style={[
               styles.itemCard,
@@ -231,7 +230,7 @@ export default function UserSettingsMenuScreen() {
                   { color: theme.colors.textSub },
                 ]}
               >
-                お薬などのリマインド通知を設定する画面（将来追加予定）。
+                お薬などのリマインド通知を設定します。
               </Text>
             </View>
             <Text
@@ -269,7 +268,7 @@ export default function UserSettingsMenuScreen() {
                   { color: theme.colors.textSub },
                 ]}
               >
-                リマインド時刻や、お薬一覧の登録・編集ができます。
+                リマインド時刻やお薬一覧を管理します。
               </Text>
             </View>
             <Text
@@ -282,7 +281,7 @@ export default function UserSettingsMenuScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* 🆕 行動プリセット */}
+          {/* 行動プリセット */}
           <TouchableOpacity
             style={[
               styles.itemCard,
@@ -307,7 +306,7 @@ export default function UserSettingsMenuScreen() {
                   { color: theme.colors.textSub },
                 ]}
               >
-                「ごはん30分」「散歩20分」など、よく使う行動のプリセットを編集します。
+                よく使う行動のプリセットを編集します。
               </Text>
             </View>
             <Text
@@ -345,8 +344,7 @@ export default function UserSettingsMenuScreen() {
                   { color: theme.colors.textSub },
                 ]}
               >
-                端末内に保存されている記録データを JSON として
-                エクスポートする土台機能です。
+                記録データを JSON 形式でエクスポートします。
               </Text>
             </View>
             <Text
@@ -365,30 +363,12 @@ export default function UserSettingsMenuScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  container: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 13,
-    marginBottom: 16,
-  },
-  section: {
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
+  safeArea: { flex: 1 },
+  container: { padding: 16, paddingBottom: 32 },
+  title: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  subtitle: { fontSize: 13, marginBottom: 16 },
+  section: { marginTop: 8 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -401,19 +381,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
   },
-  itemTextBox: {
-    flex: 1,
-  },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  itemSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  itemChevron: {
-    fontSize: 20,
-    marginLeft: 8,
-  },
+  itemTextBox: { flex: 1 },
+  itemTitle: { fontSize: 14, fontWeight: '600' },
+  itemSubtitle: { fontSize: 12, marginTop: 2 },
+  itemChevron: { fontSize: 20, marginLeft: 8 },
 });

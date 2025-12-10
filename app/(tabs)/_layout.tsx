@@ -6,10 +6,15 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,      // ← 全タブのヘッダーを非表示
-        tabBarLabelStyle: { fontSize: 11 },
+        headerShown: false,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          marginTop: 2,
+        },
         tabBarStyle: {
-          height: 60,
+          height: 74,          // ← 高さを少し増やす
+          paddingTop: 6,
+          paddingBottom: 12,   // ← これが超重要
         },
       }}
     >
@@ -17,8 +22,7 @@ export default function TabsLayout() {
         name="today"
         options={{
           title: 'Today',
-          headerShown: false,
-          tabBarIcon: () => <Text>🕒</Text>,
+          tabBarIcon: () => <Text style={{ fontSize: 18 }}>🕒</Text>,
         }}
       />
 
@@ -26,8 +30,16 @@ export default function TabsLayout() {
         name="history"
         options={{
           title: 'History',
+          tabBarIcon: () => <Text style={{ fontSize: 18 }}>📅</Text>,
+        }}
+      />
+
+      <Tabs.Screen
+        name="timeline"
+        options={{
+          title: 'Timeline',
           headerShown: false,
-          tabBarIcon: () => <Text>📅</Text>,
+          tabBarIcon: () => <Text>🌱</Text>, // 好きな絵文字に変えてOK
         }}
       />
 
@@ -35,8 +47,7 @@ export default function TabsLayout() {
         name="stats"
         options={{
           title: 'Stats',
-          headerShown: false,
-          tabBarIcon: () => <Text>📊</Text>,
+          tabBarIcon: () => <Text style={{ fontSize: 18 }}>📊</Text>,
         }}
       />
 
@@ -44,8 +55,7 @@ export default function TabsLayout() {
         name="settings"
         options={{
           title: 'Settings',
-          headerShown: false,
-          tabBarIcon: () => <Text>⚙️</Text>,
+          tabBarIcon: () => <Text style={{ fontSize: 18 }}>⚙️</Text>,
         }}
       />
     </Tabs>
