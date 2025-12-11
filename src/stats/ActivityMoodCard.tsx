@@ -2,14 +2,15 @@
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { useSubscription } from '../subscription/useSubscription';
 import { useTheme } from '../theme/useTheme';
+import { moodAverageToLabel } from '../utils/mood';
 import type { StatsRow } from './statsLogic';
 
 // 小さな Pro バッジ（他のカードでも使い回せる）
@@ -38,7 +39,7 @@ export const ActivityMoodCard: React.FC<Props> = ({
   const analysis = useMemo(() => {
     // 行動が記録されていて、かつ気分スコアがある日だけ対象
     const valid = rows.filter(
-      r => r.activityMinutes > 0 && r.moodAvg != null
+      (r) => r.activityMinutes > 0 && r.moodAvg != null
     );
 
     if (valid.length < 3) {
@@ -54,20 +55,27 @@ export const ActivityMoodCard: React.FC<Props> = ({
     // ここでは仮に「60分以上=活動多い日」と定義
     const HIGH_THRESHOLD = 60;
 
-    const highDays = valid.filter(r => r.activityMinutes >= HIGH_THRESHOLD);
-    const lowDays = valid.filter(r => r.activityMinutes < HIGH_THRESHOLD);
+    const highDays = valid.filter(
+      (r) => r.activityMinutes >= HIGH_THRESHOLD
+    );
+    const lowDays = valid.filter(
+      (r) => r.activityMinutes < HIGH_THRESHOLD
+    );
 
     const avg = (xs: number[]) =>
-      xs.length === 0 ? null : xs.reduce((a, b) => a + b, 0) / xs.length;
+      xs.length === 0
+        ? null
+        : xs.reduce((a, b) => a + b, 0) / xs.length;
 
+    // ⚠️ r.moodAvg は 1〜5 想定（statsLogic 側で normalizeMoodValue 済み）
     const highAvg = avg(
       highDays
-        .map(r => r.moodAvg)
+        .map((r) => r.moodAvg)
         .filter((v): v is number => v != null)
     );
     const lowAvg = avg(
       lowDays
-        .map(r => r.moodAvg)
+        .map((r) => r.moodAvg)
         .filter((v): v is number => v != null)
     );
 
@@ -85,9 +93,15 @@ export const ActivityMoodCard: React.FC<Props> = ({
     };
   }, [rows]);
 
-  const formatMood = (score: number | null) => {
+  const formatMoodNumeric = (score: number | null) => {
     if (score == null) return '—';
     return score.toFixed(1);
+  };
+
+  const formatMoodLabel = (score: number | null) => {
+    if (score == null) return '—';
+    // 🧠 ここで moodAverageToLabel を使う：1〜5 の平均値 → ラベル
+    return moodAverageToLabel(score);
   };
 
   // ─────────────────────────
@@ -217,7 +231,15 @@ export const ActivityMoodCard: React.FC<Props> = ({
                   { color: theme.colors.textMain },
                 ]}
               >
-                {formatMood(highAvg)}
+                {formatMoodNumeric(highAvg)}
+              </Text>
+              <Text
+                style={[
+                  styles.statValueLabel,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                {formatMoodLabel(highAvg)}
               </Text>
             </View>
             <View style={styles.statBox}>
@@ -237,7 +259,15 @@ export const ActivityMoodCard: React.FC<Props> = ({
                   { color: theme.colors.textMain },
                 ]}
               >
-                {formatMood(lowAvg)}
+                {formatMoodNumeric(lowAvg)}
+              </Text>
+              <Text
+                style={[
+                  styles.statValueLabel,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                {formatMoodLabel(lowAvg)}
               </Text>
             </View>
           </View>
@@ -380,6 +410,10 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  statValueLabel: {
+    fontSize: 11,
+    marginTop: 2,
   },
   resultBox: {
     marginTop: 8,

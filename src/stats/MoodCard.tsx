@@ -75,7 +75,7 @@ export const MoodCard: React.FC<Props> = ({ rows, periodLabel }) => {
               { color: theme.colors.textMain },
             ]}
           >
-            {moodSummary.avgScore
+            {moodSummary.avgScore != null
               ? moodSummary.avgScore.toFixed(2)
               : '—'}
           </Text>
@@ -158,3 +158,5 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
+export default MoodCard;

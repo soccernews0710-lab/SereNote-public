@@ -32,9 +32,9 @@ export type SleepQualityTag =
 export type StatsRow = {
   dateKey: DateKey;
   dateLabel: string;
-  moodAvg: number | null;
-  moodMin: number | null;
-  moodMax: number | null;
+  moodAvg: number | null;      // 1〜5 に正規化済み
+  moodMin: number | null;      // 1〜5 に正規化済み
+  moodMax: number | null;      // 1〜5 に正規化済み
   sleepMinutes: number | null;
   medsCount: number;
   notesCount: number;
@@ -62,8 +62,8 @@ export type DoctorSymptomItem = {
 export type ActivityMoodEffect = {
   hasActivityDays: number;
   noActivityDays: number;
-  avgMoodWithActivity: number | null;
-  avgMoodWithoutActivity: number | null;
+  avgMoodWithActivity: number | null;    // 1〜5
+  avgMoodWithoutActivity: number | null; // 1〜5
   diff: number | null; // with - without
 };
 
@@ -141,7 +141,12 @@ export function calcDailyMoodAverage(
     return { avg: null, min: null, max: null };
   }
 
-  // entry.mood.value は 1〜5 or -2〜+2 を想定
+  /**
+   * 🔹 現行:
+   *   entry.mood.value は SerenoteMoodValue (-2〜+2)
+   * 🔹 旧データ:
+   *   もし 1〜5 で保存されていても normalizeMoodValue が吸収する
+   */
   const normalized = normalizeMoodValue((entry as any).mood.value);
   if (normalized == null) {
     return { avg: null, min: null, max: null };
@@ -253,14 +258,14 @@ export function calcMoodSummary(rows: StatsRow[]) {
 
   if (values.length === 0) {
     return {
-      avgScore: null as number | null,
+      avgScore: null as number | null,   // 1〜5
       avgLabel: '—',
       stabilityLabel: 'データなし',
     };
   }
 
   const sum = values.reduce((acc, v) => acc + v, 0);
-  const avg = sum / values.length;
+  const avg = sum / values.length; // 1〜5 の平均
 
   const avgLabel = moodAverageToLabel(avg);
 
@@ -343,7 +348,7 @@ export function calcOverviewSummary(rows: StatsRow[]) {
   const recordRate =
     totalDays > 0 ? daysWithAnyRecord / totalDays : 0;
 
-  // 平均気分
+  // 平均気分（1〜5）
   const moodValues = rows
     .map(r => r.moodAvg)
     .filter((v): v is number => v != null);

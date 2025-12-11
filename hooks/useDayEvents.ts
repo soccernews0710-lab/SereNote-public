@@ -23,6 +23,7 @@ import {
 
 import type { SerenoteMoodValue } from '../src/types/mood';
 import type { TimelineEvent } from '../src/types/timeline';
+import { normalizeMoodValue } from '../src/utils/mood';
 
 /**
  * 今日の日付キーを YYYY-MM-DD 形式で返すユーティリティ。
@@ -75,6 +76,61 @@ function moodLabelToValue(label: string): SerenoteMoodValue {
 }
 
 /**
+ * 読み込み時の軽量マイグレーション：
+ * - もし mood.value や timelineEvents[].moodValue が 1〜5 で保存されていたら
+ *   -2〜+2 のセンタリングスコアに変換して返す。
+ */
+function migrateEntryMoodIfNeeded(entry: SerenoteEntry): SerenoteEntry {
+  let mood = entry.mood;
+
+  // 🔁 SerenoteEntry.mood.value のマイグレーション
+  if (mood && typeof mood.value === 'number') {
+    const v = mood.value;
+    if (v >= 1 && v <= 5) {
+      const normalized = normalizeMoodValue(v); // 1〜5として扱う
+      if (normalized != null) {
+        const centered = (normalized - 3) as SerenoteMoodValue; // 1→-2, 3→0, 5→2
+        mood = {
+          ...mood,
+          value: centered,
+        };
+      }
+    } else if (v < -2 || v > 2) {
+      // 想定外の値は一応クリアしておく（念のため）
+      mood = undefined;
+    }
+  }
+
+  // 🔁 timelineEvents[].moodValue のマイグレーション
+  let migratedTimeline: TimelineEvent[] | undefined = entry.timelineEvents;
+  if (Array.isArray(entry.timelineEvents)) {
+    migratedTimeline = entry.timelineEvents.map((e) => {
+      if (e.type !== 'mood' || typeof e.moodValue !== 'number') {
+        return e;
+      }
+      const v = e.moodValue;
+      if (v >= 1 && v <= 5) {
+        const normalized = normalizeMoodValue(v);
+        if (normalized == null) return { ...e, moodValue: undefined };
+        const centered = (normalized - 3) as SerenoteMoodValue;
+        return { ...e, moodValue: centered };
+      }
+      if (v < -2 || v > 2) {
+        return { ...e, moodValue: undefined };
+      }
+      // すでに -2〜+2 ならそのまま
+      return e;
+    });
+  }
+
+  return {
+    ...entry,
+    mood,
+    timelineEvents: migratedTimeline,
+  };
+}
+
+/**
  * TimelineEvent[] から SerenoteEntry の各フィールドを構築する。
  * - mood / sleep / medications / symptoms / notes を events から再計算
  * - createdAt は既存のものを維持
@@ -97,7 +153,7 @@ function buildEntryFromEvents(
     // ② それが無い古いイベントは label から変換
     const value: SerenoteMoodValue =
       typeof last.moodValue === 'number'
-        ? last.moodValue
+        ? (last.moodValue as SerenoteMoodValue)
         : moodLabelToValue(last.label ?? '');
 
     mood = {
@@ -199,10 +255,15 @@ export function useDayEvents(
         const loadedEntry = await loadEntryForDate(dateKey);
         if (cancelled) return;
 
-        setEntry(loadedEntry);
+        const fixedEntry =
+          loadedEntry != null
+            ? migrateEntryMoodIfNeeded(loadedEntry)
+            : createEmptySerenoteEntry(dateKey);
 
-        if (loadedEntry && Array.isArray(loadedEntry.timelineEvents)) {
-          _setEvents(loadedEntry.timelineEvents);
+        setEntry(fixedEntry);
+
+        if (fixedEntry && Array.isArray(fixedEntry.timelineEvents)) {
+          _setEvents(fixedEntry.timelineEvents);
         } else if (options?.initialEvents) {
           _setEvents(options.initialEvents);
         } else {
@@ -211,7 +272,8 @@ export function useDayEvents(
       } catch (e) {
         console.warn('Failed to load day events', e);
         if (!cancelled) {
-          setEntry(createEmptySerenoteEntry(dateKey));
+          const empty = createEmptySerenoteEntry(dateKey);
+          setEntry(empty);
           _setEvents(options?.initialEvents ?? []);
         }
       } finally {
