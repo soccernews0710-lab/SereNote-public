@@ -16,7 +16,7 @@ import {
 import { useTheme } from '../../src/theme/useTheme';
 import TimePicker from '../common/TimePicker';
 
-// useMoodModal で使っている MoodValue を import
+// useMoodModal で使っている MoodValue を import（1〜5）
 import type { MoodValue } from '../../hooks/useMoodModal';
 
 type Props = {
@@ -35,12 +35,6 @@ type Props = {
   setTimeText: (text: string) => void;
 };
 
-// 1〜5 に統一
-// 1: とてもつらい
-// 2: つらい
-// 3: ふつう
-// 4: 少し良い
-// 5: とても良い
 const MOOD_OPTIONS: { value: MoodValue; label: string; emoji: string }[] = [
   { value: 1, label: 'とてもつらい', emoji: '😭' },
   { value: 2, label: 'つらい', emoji: '😣' },
@@ -65,7 +59,12 @@ const MoodModal: React.FC<Props> = ({
   const selected = MOOD_OPTIONS.find(opt => opt.value === mood);
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onRequestClose}
+    >
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -97,6 +96,14 @@ const MoodModal: React.FC<Props> = ({
                 </Text>
 
                 {/* 気分ボタン列 */}
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.colors.textSub },
+                  ]}
+                >
+                  気分
+                </Text>
                 <View style={styles.moodRow}>
                   {MOOD_OPTIONS.map(opt => {
                     const active = opt.value === mood;
@@ -158,7 +165,7 @@ const MoodModal: React.FC<Props> = ({
                     : 'まだ選択されていません'}
                 </Text>
 
-                {/* 🕒 時刻（TimePicker） */}
+                {/* 時刻入力（TimePicker） */}
                 <Text
                   style={[
                     styles.fieldLabel,
@@ -173,7 +180,7 @@ const MoodModal: React.FC<Props> = ({
                 <Text
                   style={[
                     styles.fieldLabel,
-                    { color: theme.colors.textSub, marginTop: 10 },
+                    { color: theme.colors.textSub },
                   ]}
                 >
                   メモ（任意）
@@ -291,6 +298,7 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 12,
+    marginTop: 8,
     marginBottom: 4,
   },
   textArea: {

@@ -1,7 +1,7 @@
 // hooks/useMoodModal.tsx
 import { useState } from 'react';
-import type { SerenoteMoodValue } from '../src/types/serenote';
 import type { TimelineEvent } from '../src/types/timeline';
+import { describeMood } from '../src/utils/mood';
 
 // 5段階の気分スコア（1〜5）
 // 1: とてもつらい
@@ -9,7 +9,7 @@ import type { TimelineEvent } from '../src/types/timeline';
 // 3: ふつう
 // 4: 少し良い
 // 5: とても良い
-export type MoodValue = SerenoteMoodValue;
+export type MoodValue = 1 | 2 | 3 | 4 | 5;
 
 // "HH:MM" を現在時刻から作る
 const getCurrentTimeString = () => {
@@ -39,7 +39,7 @@ type UseMoodModalReturn = {
 
 export const useMoodModal = (): UseMoodModalReturn => {
   const [visible, setVisible] = useState(false);
-  // デフォルトは「3: ふつう」
+  // デフォルトは「ふつう」
   const [mood, setMood] = useState<MoodValue>(3);
   const [memoText, setMemoText] = useState('');
   const [timeText, setTimeText] = useState('');
@@ -52,25 +52,9 @@ export const useMoodModal = (): UseMoodModalReturn => {
     setVisible(false);
   };
 
-  // 気分スコア(1〜5) → ラベル & 絵文字
-  const buildMoodLabelAndEmoji = (): { label: string; emoji: string } => {
-    switch (mood) {
-      case 1:
-        return { label: 'とてもつらい', emoji: '😭' };
-      case 2:
-        return { label: 'つらい', emoji: '😣' };
-      case 3:
-        return { label: 'ふつう', emoji: '😐' };
-      case 4:
-        return { label: '少し良い', emoji: '🙂' };
-      case 5:
-      default:
-        return { label: 'とても良い', emoji: '😄' };
-    }
-  };
-
   const confirmAndCreateEvent = (onAdd: (event: TimelineEvent) => void) => {
-    const { label, emoji } = buildMoodLabelAndEmoji();
+    // mood（1〜5）からラベル・絵文字を取得
+    const { label, emoji } = describeMood(mood);
 
     const rawTime = timeText.trim();
     const time = rawTime !== '' ? rawTime : getCurrentTimeString();
@@ -88,8 +72,8 @@ export const useMoodModal = (): UseMoodModalReturn => {
       planned: false,
       emoji,
       memo: memoText.trim() || undefined,
-      // 🆕 1〜5 の moodValue をそのまま保存
-      moodValue: mood,
+      // 🆕 1〜5 の正規化済みスコアを保存
+      moodScore: mood,
     };
 
     onAdd(newEvent);

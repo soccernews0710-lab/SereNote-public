@@ -1,5 +1,4 @@
 // src/types/timeline.ts
-import type { SerenoteMoodValue } from './serenote';
 
 // タイムラインに登場するイベントの種類
 export type TimelineEventType =
@@ -75,9 +74,6 @@ export type TimelineEvent = {
   planned: boolean; // 予定かどうか（true = 予定、false = 実績）
   emoji?: string;
 
-  // 🧠 気分イベント用：1〜5 のスコア（旧データでは -2〜+2 が入っている可能性あり）
-  moodValue?: SerenoteMoodValue | number;
-
   // 💊 新しい薬マスタ方式
   medId?: string; // どの薬を飲んだか（UserMedication.id）
   medTimeSlot?: MedTimeSlot; // 朝/夜/頓服 など
@@ -85,6 +81,10 @@ export type TimelineEvent = {
 
   // 🌟 行動カテゴリ（activity のときメインで使用）
   category?: ActivityCategory;
+
+  // 🌟 気分スコア（1〜5 に正規化した値）
+  // 1: とてもつらい / 5: とても良い
+  moodScore?: number;
 
   // 共通メモ
   memo?: string;
