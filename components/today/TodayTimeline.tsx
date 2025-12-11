@@ -14,6 +14,13 @@ import type {
   TimelineEventType,
 } from '../../src/types/timeline';
 
+// 🧠 気分表示用ユーティリティ
+import {
+  moodRawToDisplayText,
+  moodValueToEmoji,
+  normalizeMoodValue,
+} from '../../src/utils/mood';
+
 type Props = {
   events: TimelineEvent[];
   // 🔹 長押しされたときに呼ばれるコールバック
@@ -34,30 +41,43 @@ function getEventMeta(
     case 'wake':
       // 起床 → 青系
       return { icon: '🌅', color: theme.colors.accentBlue };
+
     case 'sleep':
       // 睡眠 → 専用カラー
       return { icon: '🌙', color: theme.colors.accentSleep };
+
     case 'med':
       // 薬
       return { icon: '💊', color: theme.colors.accentMeds };
-    case 'mood':
-      // 気分
+
+    case 'mood': {
+      // 🌈 気分イベント → moodScore (1〜5 or -2〜+2) から絵文字を決定
+      const normalized = normalizeMoodValue(event.moodScore ?? null);
+      const emoji =
+        normalized != null
+          ? moodValueToEmoji(normalized)
+          : event.emoji ?? '🙂';
+
       return {
-        icon: event.emoji ?? '🙂',
+        icon: emoji,
         color: theme.colors.accentMood,
       };
+    }
+
     case 'symptom':
       // 症状 → ノート系のアクセントを流用
       return {
         icon: event.emoji ?? '😣',
         color: theme.colors.accentNotes,
       };
+
     case 'activity':
       // 行動 → グリーン系
       return {
         icon: event.emoji ?? '🏃‍♂️',
         color: theme.colors.accentGreen,
       };
+
     case 'note':
     default:
       return {
@@ -82,6 +102,12 @@ const TimelineItemCard: React.FC<ItemProps> = memo(
     const timeLabel = event.endTime
       ? `${event.time} – ${event.endTime}`
       : event.time;
+
+    // 🌟 メインラベル（気分だけは moodScore から動的生成）
+    const mainLabel =
+      event.type === 'mood'
+        ? moodRawToDisplayText(event.moodScore ?? null)
+        : event.label;
 
     return (
       <View style={styles.itemRow}>
@@ -150,7 +176,7 @@ const TimelineItemCard: React.FC<ItemProps> = memo(
               ]}
               numberOfLines={2}
             >
-              {event.label}
+              {mainLabel}
             </Text>
 
             {event.memo ? (

@@ -82,7 +82,7 @@ export type TimelineEvent = {
   // 🌟 行動カテゴリ（activity のときメインで使用）
   category?: ActivityCategory;
 
-  // 🌟 気分スコア（1〜5 に正規化した値）
+  // 🌟 気分スコア（1〜5）
   // 1: とてもつらい / 5: とても良い
   moodScore?: number;
 

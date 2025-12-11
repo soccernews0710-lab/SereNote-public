@@ -21,15 +21,15 @@ export function normalizeMoodValue(raw: MoodRaw): number | null {
   const v = Number(raw);
   if (Number.isNaN(v)) return null;
 
-  // -2〜+2 → 1〜5 にマップ
+  // ✅ 先に「1〜5」を優先して扱う
+  if (v >= 1 && v <= 5) {
+    return clamp(v, 1, 5);
+  }
+
+  // それ以外で -2〜+2 の場合は「センタリング値」として 1〜5 に変換
   if (v >= -2 && v <= 2) {
     const normalized = v + 3; // -2→1, -1→2, 0→3, 1→4, 2→5
     return clamp(normalized, 1, 5);
-  }
-
-  // すでに 1〜5 の場合
-  if (v >= 1 && v <= 5) {
-    return clamp(v, 1, 5);
   }
 
   return null;
