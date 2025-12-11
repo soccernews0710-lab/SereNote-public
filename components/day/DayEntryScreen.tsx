@@ -55,6 +55,16 @@ import { useDailyMoodPrompt } from '../../hooks/useDailyMoodPrompt';
 // 🆕 サブスクリプション情報
 import { useSubscription } from '../../src/subscription/useSubscription';
 
+// 🆕 日付ユーティリティ
+import { getNextDateKey, getPrevDateKey } from '../../src/utils/dateKey';
+
+// 🆕 気分ユーティリティ
+import {
+  moodValueToEmoji,
+  moodValueToLabel,
+  normalizeMoodValue,
+} from '../../src/utils/mood';
+
 type Props = {
   dateKey: DateKey;
   headerLabel: string;
@@ -64,30 +74,6 @@ type Props = {
 
 // 🆕 Free 版の 1 日あたり気分記録上限
 const FREE_MOOD_LIMIT_PER_DAY = 2;
-
-/**
- * 前日の DateKey を返す ("YYYY-MM-DD" → 1日前)
- */
-function getPrevDateKey(date: DateKey): DateKey {
-  const d = new Date(`${date}T00:00:00`);
-  d.setDate(d.getDate() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
-
-/**
- * 翌日の DateKey を返す ("YYYY-MM-DD" → 1日後)
- */
-function getNextDateKey(date: DateKey): DateKey {
-  const d = new Date(`${date}T00:00:00`);
-  d.setDate(d.getDate() + 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
 
 export const DayEntryScreen: React.FC<Props> = ({
   dateKey,
@@ -242,18 +228,13 @@ export const DayEntryScreen: React.FC<Props> = ({
       };
     }
 
-    // 気分
-    let moodLabel = '—';
-    if (entry.mood?.value != null) {
-      const v = entry.mood.value;
-      const map: Record<number, string> = {
-        1: '😭 とてもつらい',
-        2: '😣 つらい',
-        3: '😐 ふつう',
-        4: '🙂 少し良い',
-        5: '😄 とても良い',
-      };
-      moodLabel = map[v] ?? '—';
+    // 気分（1〜5 / -2〜+2 どちらでも OK）
+    let moodDisplay = '—';
+    const normalized = normalizeMoodValue(entry.mood?.value);
+    if (normalized != null) {
+      const label = moodValueToLabel(normalized);
+      const emoji = moodValueToEmoji(normalized);
+      moodDisplay = `${emoji} ${label}`;
     }
 
     // 睡眠（前日 bedTime → 当日 wakeTime 優先）
@@ -281,7 +262,7 @@ export const DayEntryScreen: React.FC<Props> = ({
     return {
       sleep: sleepLabel,
       meds: medsLabel,
-      mood: moodLabel,
+      mood: moodDisplay,
       activities: activitiesLabel,
     };
   }, [entry, prevEntry]);
@@ -844,31 +825,42 @@ export const DayEntryScreen: React.FC<Props> = ({
                 noteModal.openForEdit(event);
                 break;
 
-              case 'mood':
+              case 'mood': {
                 setEditingMoodEvent(event);
                 moodModal.setMemoText(event.memo ?? '');
                 moodModal.setTimeText(event.time || '');
-                switch (event.label) {
-                  case 'とてもつらい':
-                    moodModal.setMood(-2);
-                    break;
-                  case 'つらい':
-                    moodModal.setMood(-1);
-                    break;
-                  case 'ふつう':
-                    moodModal.setMood(0);
-                    break;
-                  case '少し良い':
-                    moodModal.setMood(1);
-                    break;
-                  case 'とても良い':
-                    moodModal.setMood(2);
-                    break;
-                  default:
-                    moodModal.setMood(0);
+
+                const anyEvent = event as any;
+
+                // 🆕 moodValue(-2〜+2) があればそれを優先
+                if (typeof anyEvent.moodValue === 'number') {
+                  moodModal.setMood(anyEvent.moodValue);
+                } else {
+                  // 従来の label ベースの fallback（後方互換）
+                  switch (event.label) {
+                    case 'とてもつらい':
+                      moodModal.setMood(-2);
+                      break;
+                    case 'つらい':
+                      moodModal.setMood(-1);
+                      break;
+                    case 'ふつう':
+                      moodModal.setMood(0);
+                      break;
+                    case '少し良い':
+                      moodModal.setMood(1);
+                      break;
+                    case 'とても良い':
+                      moodModal.setMood(2);
+                      break;
+                    default:
+                      moodModal.setMood(0);
+                  }
                 }
+
                 moodModal.openModal();
                 break;
+              }
 
               case 'activity':
                 setEditingActivityEvent(event);

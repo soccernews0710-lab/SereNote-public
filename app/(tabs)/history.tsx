@@ -17,8 +17,17 @@ import type {
   DateKey,
   SerenoteEntry,
   SerenoteEntryMap,
-  SerenoteMoodValue,
 } from '../../src/types/serenote';
+
+// 🆕 日付ユーティリティ（前日計算のみ利用）
+import { getPrevDateKey } from '../../src/utils/dateKey';
+
+// 🆕 気分ユーティリティ
+import {
+  moodValueToEmoji,
+  moodValueToLabel,
+  normalizeMoodValue,
+} from '../../src/utils/mood';
 
 /**
  * 日付文字列 "YYYY-MM-DD" を、そのまま or 将来的にフォーマットしやすいように
@@ -29,33 +38,19 @@ function formatDateLabel(date: DateKey): string {
 }
 
 /**
- * 前日の日付キーを返す（"YYYY-MM-DD" → 前日）
- */
-function getPrevDateKey(date: DateKey): DateKey {
-  const d = new Date(`${date}T00:00:00`);
-  d.setDate(d.getDate() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
-
-/**
  * 気分の絵文字＋ラベル
  */
 function getMoodSummary(entry: SerenoteEntry): string {
-  if (!entry.mood?.value) return '気分: —';
+  const normalized = normalizeMoodValue(entry.mood?.value);
 
-  const v: SerenoteMoodValue = entry.mood.value;
-  const map: Record<SerenoteMoodValue, string> = {
-    1: '😭 とてもつらい',
-    2: '😣 つらい',
-    3: '😐 ふつう',
-    4: '🙂 少し良い',
-    5: '😄 とても良い',
-  };
+  if (normalized == null) {
+    return '気分: —';
+  }
 
-  return `気分: ${map[v] ?? '—'}`;
+  const emoji = moodValueToEmoji(normalized);
+  const label = moodValueToLabel(normalized);
+
+  return `気分: ${emoji} ${label}`;
 }
 
 /**
@@ -112,10 +107,11 @@ function getNotesSymptomSummary(entry: SerenoteEntry): string {
  * つらい日・症状の多い日をハイライトするためのスタイル計算
  */
 function getHighlightColors(entry: SerenoteEntry) {
-  const mood = entry.mood?.value ?? null;
+  // 1〜5 or -2〜+2 のどちらでも動くように normalize してから判定
+  const normalizedMood = normalizeMoodValue(entry.mood?.value);
   const symptomCount = entry.symptoms?.length ?? 0;
 
-  const isBadMood = mood === 1 || mood === 2;
+  const isBadMood = normalizedMood === 1 || normalizedMood === 2;
   const hasSymptoms = symptomCount > 0;
 
   // デフォルト（ハイライトなし）
@@ -329,8 +325,8 @@ export default function HistoryScreen() {
 
     if (filter === 'bad-mood') {
       return base.filter(entry => {
-        const v = entry.mood?.value;
-        return v === 1 || v === 2;
+        const mood = normalizeMoodValue(entry.mood?.value);
+        return mood === 1 || mood === 2;
       });
     }
 

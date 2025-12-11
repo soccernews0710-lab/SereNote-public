@@ -7,6 +7,13 @@ import type {
   SerenoteMoodValue,
 } from '../types/serenote';
 
+// 🆕 日付ユーティリティ
+import {
+  formatDateKeyLabel,
+  getDateRange,
+  getPrevDateKey,
+} from '../utils/dateKey';
+
 // ========= 型 =========
 
 export type StatsPeriod = '7d' | '30d' | '90d';
@@ -58,39 +65,8 @@ export type ActivityMoodEffect = {
 // ========= 日付ユーティリティ =========
 
 export function formatDateLabel(dateKey: DateKey): string {
-  return dateKey;
-}
-
-function parseDate(key: DateKey): Date {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function addDays(date: Date, diff: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + diff);
-  return d;
-}
-
-function formatDateKey(date: Date): DateKey {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function getPrevDateKey(date: DateKey): DateKey {
-  return formatDateKey(addDays(parseDate(date), -1));
-}
-
-function getDateRange(endDateKey: DateKey, days: number): DateKey[] {
-  const end = parseDate(endDateKey);
-  const list: DateKey[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = addDays(end, -i);
-    list.push(formatDateKey(d));
-  }
-  return list;
+  // グラフなどで使う日付ラベル（例: "3月1日(土)"）
+  return formatDateKeyLabel(dateKey);
 }
 
 // ========= 共通：HH:MM → 分 =========

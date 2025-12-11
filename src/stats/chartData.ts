@@ -2,10 +2,11 @@
 // Stats 画面用の「1日ぶん集計」と「グラフ用データ変換」をまとめたユーティリティ
 
 import type {
-    DateKey,
-    SerenoteEntry,
-    SerenoteEntryMap,
+  DateKey,
+  SerenoteEntry,
+  SerenoteEntryMap,
 } from '../types/serenote';
+import { calcDailySleepMinutes as calcDailySleepMinutesCore } from './statsLogic';
 
 // ==============================
 // 型定義
@@ -57,13 +58,6 @@ function formatDateKey(d: Date): DateKey {
   return `${y}-${m}-${day}`;
 }
 
-/** 前日の日付キーを求める */
-function getPrevDateKey(date: DateKey): DateKey {
-  const d = parseDateKey(date);
-  d.setDate(d.getDate() - 1);
-  return formatDateKey(d);
-}
-
 /** グラフの x 軸用のラベル（例: "11/30"） */
 function formatChartLabel(date: DateKey): string {
   const d = parseDateKey(date);
@@ -79,45 +73,20 @@ function formatChartLabel(date: DateKey): string {
 /**
  * その日の気分スコア（1〜5）の平均値を計算する。
  *
- * いまは「entry.mood?.value」1個だけを使っているけど、
- * 将来的に「1日複数回の mood イベント配列」ができたら、
- * ここで配列を平均する形に拡張できる。
+ * 現状:
+ * - SerenoteEntry.mood.value は 1〜5 を前提
+ * - 将来的に「1日複数回の mood イベント配列」を持つ場合は、
+ *   ここでイベント配列から平均値を計算する形に拡張可能。
  */
 function calcDailyMoodAverage(entry: SerenoteEntry | undefined): number | null {
-  if (!entry || !entry.mood || entry.mood.value == null) return null;
+  if (!entry || entry.mood == null || entry.mood.value == null) return null;
 
-  // -2〜+2 を 1〜5 にマッピングしている場合：
-  //   (value: -2,-1,0,1,2) → (1〜5)
-  const raw = entry.mood.value; // -2〜+2 を想定
-  const mapped = raw + 3; // -2→1, -1→2, 0→3, 1→4, 2→5
+  const raw = entry.mood.value;
+  if (typeof raw !== 'number') return null;
 
-  return mapped;
-}
-
-/**
- * 「前日の就寝 → 当日の起床」を含めて、その日ぶんの総睡眠時間（分）をざっくり返す。
- *
- * ※ いまはシンプルに entry.sleep.totalMinutes を優先。
- *    もし totalMinutes がない場合は、ここで bedTime / wakeTime から計算してもOK。
- */
-function calcDailySleepMinutes(
-  date: DateKey,
-  allEntries: SerenoteEntryMap
-): number | null {
-  const entry = allEntries[date];
-  if (!entry) return null;
-
-  // いまは SerenoteSleep 型に totalMinutes が定義されていないので、
-  // any キャストで安全に触る（将来 totalMinutes を追加したらそのまま使えるように）
-  const sleepAny = entry.sleep as any | undefined;
-
-  if (sleepAny && typeof sleepAny.totalMinutes === 'number') {
-    return sleepAny.totalMinutes as number;
-  }
-
-  // totalMinutes がまだ無ければ、ひとまず null を返す
-  // （あとで bedTime / wakeTime から計算ロジックを足してもOK）
-  return null;
+  // 念のため 1〜5 に clamp
+  const clamped = Math.min(5, Math.max(1, raw));
+  return clamped;
 }
 
 /**
@@ -158,7 +127,8 @@ export function buildStatsDayRows(
     const entry = allEntries[dateKey];
 
     const moodAvg1to5 = calcDailyMoodAverage(entry);
-    const sleepMinutes = calcDailySleepMinutes(dateKey, allEntries);
+    // 睡眠は statsLogic.ts の共通ロジックを使用
+    const sleepMinutes = calcDailySleepMinutesCore(dateKey, allEntries);
     const medsCount = calcDailyMedsCount(entry);
     const notesAndSymptomsCount =
       calcDailyNotesAndSymptomsCount(entry);

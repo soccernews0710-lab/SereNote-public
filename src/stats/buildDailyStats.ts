@@ -1,30 +1,23 @@
 // src/stats/buildDailyStats.ts
 import type {
-    DateKey,
-    SerenoteEntry,
-    SerenoteEntryMap
+  DateKey,
+  SerenoteEntry,
+  SerenoteEntryMap,
 } from '../types/serenote';
 import type {
-    DailyStats,
-    DailyStatsMap,
-    MedStats,
-    MoodStabilityLabel,
-    MoodStats,
-    NoteStats,
-    SleepQualityTag,
-    SleepStats,
+  DailyStats,
+  DailyStatsMap,
+  MedStats,
+  MoodStabilityLabel,
+  MoodStats,
+  NoteStats,
+  SleepQualityTag,
+  SleepStats,
 } from '../types/stats';
 import type { TimelineEvent } from '../types/timeline';
 
-// "YYYY-MM-DD" → 前日キー
-function getPrevDateKey(date: DateKey): DateKey {
-  const d = new Date(`${date}T00:00:00`);
-  d.setDate(d.getDate() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
+// 🆕 日付ユーティリティ（前日キー取得）
+import { getPrevDateKey } from '../utils/dateKey';
 
 // "HH:mm" → 分（0〜1439）
 // フォーマット不正なら null
@@ -53,7 +46,7 @@ function convertTimelineMoodToScore(event: TimelineEvent): number | null {
   const anyEvent = event as any;
   if (typeof anyEvent.moodValue === 'number') {
     const mv = anyEvent.moodValue; // -2〜+2 の想定
-    const normalized = mv + 3;     // -2→1, -1→2, 0→3, 1→4, 2→5
+    const normalized = mv + 3; // -2→1, -1→2, 0→3, 1→4, 2→5
     if (normalized >= 1 && normalized <= 5) {
       return normalized;
     }
