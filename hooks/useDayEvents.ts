@@ -18,7 +18,7 @@ import {
   SerenoteNote,
   SerenoteSleep,
   SerenoteSymptomLog,
-  createEmptySerenoteEntry
+  createEmptySerenoteEntry,
 } from '../src/types/serenote';
 
 import type { SerenoteMoodValue } from '../src/types/mood';
@@ -69,7 +69,8 @@ function migrateEntryMoodIfNeeded(entry: SerenoteEntry): SerenoteEntry {
   if (mood && typeof mood.value === 'number') {
     const v = mood.value;
     if (v >= 1 && v <= 5) {
-      const normalized = normalizeMoodValue(v); // 1〜5として扱う
+      // v を 1〜5 として扱い、1→-2, 3→0, 5→2 に変換
+      const normalized = normalizeMoodValue(v); // ここでは 1〜5 として渡す
       if (normalized != null) {
         const centered = (normalized - 3) as SerenoteMoodValue; // 1→-2, 3→0, 5→2
         mood = {
@@ -86,7 +87,7 @@ function migrateEntryMoodIfNeeded(entry: SerenoteEntry): SerenoteEntry {
   // 🔁 timelineEvents[].moodValue のマイグレーション
   let migratedTimeline: TimelineEvent[] | undefined = entry.timelineEvents;
   if (Array.isArray(entry.timelineEvents)) {
-    migratedTimeline = entry.timelineEvents.map((e) => {
+    migratedTimeline = entry.timelineEvents.map(e => {
       if (e.type !== 'mood' || typeof e.moodValue !== 'number') {
         return e;
       }
@@ -120,29 +121,52 @@ function migrateEntryMoodIfNeeded(entry: SerenoteEntry): SerenoteEntry {
 function buildEntryFromEvents(
   dateKey: DateKey,
   events: TimelineEvent[],
-  prevEntry?: SerenoteEntry | null,
+  prevEntry?: SerenoteEntry | null
 ): SerenoteEntry {
   const base: SerenoteEntry = prevEntry ?? createEmptySerenoteEntry(dateKey);
 
   // --- mood ---
   let mood: SerenoteMood | null | undefined = base.mood;
-  const moodEvents = events.filter((e) => e.type === 'mood');
+  const moodEvents = events.filter(e => e.type === 'mood');
 
   if (moodEvents.length > 0) {
     const last = moodEvents[moodEvents.length - 1];
 
     // ① 新フォーマット: moodValue (-2〜+2) を優先
-    // ② それが無い古いイベントは label から変換
-    const value: SerenoteMoodValue =
-      typeof last.moodValue === 'number'
-        ? (last.moodValue as SerenoteMoodValue)
-        : moodLabelToCenteredValue(last.label ?? '');
+    // ② それが 1〜5 だった場合はセンタリングして -2〜+2 に変換
+    // ③ それでもダメなら label から変換
+    let value: SerenoteMoodValue | null = null;
 
-    mood = {
-      value,
-      time: last.time ?? null,
-      memo: last.memo ?? null,
-    };
+    const raw = (last as any).moodValue as number | undefined;
+
+    if (typeof raw === 'number') {
+      if (raw >= -2 && raw <= 2) {
+        // すでにセンタリング済み
+        value = raw as SerenoteMoodValue;
+      } else if (raw >= 1 && raw <= 5) {
+        // 旧 1〜5 の可能性 → normalize → -3
+        const normalized = normalizeMoodValue(raw);
+        if (normalized != null) {
+          value = (normalized - 3) as SerenoteMoodValue;
+        }
+      }
+    }
+
+    // moodValue から妥当な値が取れなかった場合は label から後方互換
+    if (value == null) {
+      value = moodLabelToCenteredValue(last.label ?? '');
+    }
+
+    if (value != null) {
+      mood = {
+        value,
+        time: last.time ?? null,
+        memo: last.memo ?? null,
+      };
+    } else {
+      // どうしても値が決められない場合は mood を消しておく
+      mood = undefined;
+    }
   } else {
     // その日の mood イベントが一つも無ければ mood は undefined 扱い
     mood = undefined;
@@ -151,16 +175,12 @@ function buildEntryFromEvents(
   // --- sleep ---
   let sleep: SerenoteSleep | null | undefined = base.sleep ?? {};
   const sleepEvents = events.filter(
-    (e) => e.type === 'sleep' || e.type === 'wake',
+    e => e.type === 'sleep' || e.type === 'wake'
   );
 
   if (sleepEvents.length > 0) {
-    const lastSleep = sleepEvents
-      .filter((e) => e.type === 'sleep')
-      .slice(-1)[0];
-    const lastWake = sleepEvents
-      .filter((e) => e.type === 'wake')
-      .slice(-1)[0];
+    const lastSleep = sleepEvents.filter(e => e.type === 'sleep').slice(-1)[0];
+    const lastWake = sleepEvents.filter(e => e.type === 'wake').slice(-1)[0];
 
     sleep = {
       bedTime: lastSleep?.time ?? sleep?.bedTime ?? null,
@@ -172,8 +192,8 @@ function buildEntryFromEvents(
   }
 
   // --- medications ---
-  const medEvents = events.filter((e) => e.type === 'med');
-  const medications: SerenoteMedicationLog[] = medEvents.map((e) => ({
+  const medEvents = events.filter(e => e.type === 'med');
+  const medications: SerenoteMedicationLog[] = medEvents.map(e => ({
     id: e.id,
     time: e.time ?? '00:00',
     label: e.label || 'お薬',
@@ -181,8 +201,8 @@ function buildEntryFromEvents(
   }));
 
   // --- symptoms ---
-  const symptomEvents = events.filter((e) => e.type === 'symptom');
-  const symptoms: SerenoteSymptomLog[] = symptomEvents.map((e) => ({
+  const symptomEvents = events.filter(e => e.type === 'symptom');
+  const symptoms: SerenoteSymptomLog[] = symptomEvents.map(e => ({
     id: e.id,
     time: e.time ?? '00:00',
     label: e.label ?? '症状',
@@ -191,8 +211,8 @@ function buildEntryFromEvents(
   }));
 
   // --- notes ---
-  const noteEvents = events.filter((e) => e.type === 'note');
-  const notes: SerenoteNote[] = noteEvents.map((e) => ({
+  const noteEvents = events.filter(e => e.type === 'note');
+  const notes: SerenoteNote[] = noteEvents.map(e => ({
     id: e.id,
     time: e.time ?? '00:00',
     text: e.label ?? '',
@@ -220,11 +240,11 @@ function buildEntryFromEvents(
  */
 export function useDayEvents(
   dateKey: DateKey,
-  options?: UseDayEventsOptions,
+  options?: UseDayEventsOptions
 ): UseDayEventsResult {
   const [entry, setEntry] = useState<SerenoteEntry | null>(null);
   const [events, _setEvents] = useState<TimelineEvent[]>(
-    options?.initialEvents ?? [],
+    options?.initialEvents ?? []
   );
   const [loaded, setLoaded] = useState(false);
 
@@ -275,17 +295,17 @@ export function useDayEvents(
    * 普通の setState と同じように使える。
    */
   const setEvents: Dispatch<SetStateAction<TimelineEvent[]>> = useCallback(
-    (updater) => {
-      _setEvents((prev) => {
+    updater => {
+      _setEvents(prev => {
         const next =
           typeof updater === 'function'
             ? (updater as (prev: TimelineEvent[]) => TimelineEvent[])(prev)
             : updater;
 
         // entry を再構築して保存
-        setEntry((prevEntry) => {
+        setEntry(prevEntry => {
           const rebuilt = buildEntryFromEvents(dateKey, next, prevEntry);
-          saveEntryForDate(rebuilt).catch((e) => {
+          saveEntryForDate(rebuilt).catch(e => {
             console.warn('Failed to save day events', e);
           });
           return rebuilt;
@@ -294,7 +314,7 @@ export function useDayEvents(
         return next;
       });
     },
-    [dateKey],
+    [dateKey]
   );
 
   return {

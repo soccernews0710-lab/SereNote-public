@@ -19,10 +19,9 @@ import type { TimelineEvent } from '../types/timeline';
 // 🆕 日付ユーティリティ（前日キー取得）
 import { getPrevDateKey } from '../utils/dateKey';
 
-// 🆕 気分ユーティリティ
+// 🆕 気分ユーティリティ（1〜5 への正規化 & ラベル）
 import {
-  moodLabelToCenteredValue,
-  moodValueToLabel as moodPlainLabel,
+  moodAverageToLabel,
   moodValueToEmoji,
   normalizeMoodValue,
 } from '../utils/mood';
@@ -52,52 +51,40 @@ function parseTimeToMinutes(time: string | null | undefined): number | null {
 function convertTimelineMoodToScore(event: TimelineEvent): number | null {
   const anyEvent = event as any;
 
-  // 1) 新フォーマット: moodValue(-2〜+2 or 1〜5) を normalize して使う
+  // 1) 新仕様: moodValue (-2〜+2 or 1〜5) を優先
   if (typeof anyEvent.moodValue === 'number') {
     const normalized = normalizeMoodValue(anyEvent.moodValue);
-    return normalized ?? null;
+    if (normalized != null) return normalized;
   }
 
-  // 2) 旧フォーマット: moodScore(1〜5) があればそれも normalize
+  // 2) 旧仕様: moodScore (1〜5) があればそれも受ける
   if (typeof anyEvent.moodScore === 'number') {
     const normalized = normalizeMoodValue(anyEvent.moodScore);
-    return normalized ?? null;
+    if (normalized != null) return normalized;
   }
 
-  // 3) さらに古い: label だけの場合 → label→-2〜+2→1〜5
-  if (typeof event.label === 'string' && event.label.length > 0) {
-    const centered = moodLabelToCenteredValue(event.label); // -2〜+2
-    const normalized = normalizeMoodValue(centered);        // 1〜5
-    return normalized ?? null;
+  // 3) それも無ければ label から推定（古いデータ用）
+  switch (event.label) {
+    case 'とてもつらい':
+      return 1;
+    case 'つらい':
+      return 2;
+    case 'ふつう':
+      return 3;
+    case '少し良い':
+      return 4;
+    case 'とても良い':
+      return 5;
+    default:
+      return null;
   }
-
-  return null;
 }
 
-// SerenoteEntry.mood.value (-2〜+2 / 1〜5 両対応) を 1〜5 に正規化
+// SerenoteEntry.mood.value (-2〜+2 / 1〜5) を安全に取得して 1〜5 に正規化
 function getEntryMoodValue(entry: SerenoteEntry): number | null {
   const raw = entry.mood?.value;
   if (raw == null) return null;
   return normalizeMoodValue(raw);
-}
-
-// 平均値 → 代表値（1〜5）に丸める
-function roundMoodAverage(avgRaw: number): number {
-  // しきい値は少しトリッキーにしている
-  if (avgRaw < 1.75) return 1;
-  if (avgRaw < 2.5) return 2;
-  if (avgRaw < 3.5) return 3;
-  if (avgRaw < 4.25) return 4;
-  return 5;
-}
-
-// 1〜5 → 「😄 とても良い」形式のラベル
-function moodValueToDisplayLabel(v: number): string {
-  const normalized = normalizeMoodValue(v);
-  if (normalized == null) return '—';
-  const label = moodPlainLabel(normalized);      // 例: とても良い
-  const emoji = moodValueToEmoji(normalized);    // 例: 😄
-  return `${emoji} ${label}`;
 }
 
 // volatility → 安定度ラベル
@@ -133,19 +120,24 @@ function buildMoodStats(
 
   // 2) イベントがなければ Entry.mood.value を fallback として使う
   if (moodValuesFromEvents.length === 0) {
-    const v = getEntryMoodValue(entry);
+    const v = getEntryMoodValue(entry); // 1〜5 に正規化済み
     if (v != null) {
+      const rounded = Math.round(v);
+      const textLabel = moodAverageToLabel(v);
+      const emoji = moodValueToEmoji(rounded);
+      const label = `${emoji} ${textLabel}`;
+
       return {
         hasData: true,
         avgValue: v,
-        avgRounded: v,
+        avgRounded: rounded,
         firstValue: v,
         lastValue: v,
         minValue: v,
         maxValue: v,
         volatility: 0,
         samples: 1,
-        label: moodValueToDisplayLabel(v),
+        label,
         stabilityLabel: '安定していた日',
       };
     }
@@ -195,8 +187,8 @@ function buildMoodStats(
   const samples = values.length;
 
   const sum = values.reduce((acc, v) => acc + v, 0);
-  const avgRaw = sum / samples;
-  const avgRounded = roundMoodAverage(avgRaw);
+  const avgRaw = sum / samples; // 1〜5 の平均値
+  const avgRounded = Math.round(avgRaw);
 
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
@@ -205,6 +197,10 @@ function buildMoodStats(
 
   const firstValue = values[0] ?? null;
   const lastValue = values[values.length - 1] ?? null;
+
+  const textLabel = moodAverageToLabel(avgRaw);
+  const emoji = moodValueToEmoji(avgRounded);
+  const label = `${emoji} ${textLabel}`;
 
   return {
     hasData: true,
@@ -216,7 +212,7 @@ function buildMoodStats(
     maxValue,
     volatility,
     samples,
-    label: moodValueToDisplayLabel(avgRounded),
+    label,
     stabilityLabel,
   };
 }
