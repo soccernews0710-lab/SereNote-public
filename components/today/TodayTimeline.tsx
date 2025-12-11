@@ -14,20 +14,13 @@ import type {
   TimelineEventType,
 } from '../../src/types/timeline';
 
-// 🧠 気分表示用ユーティリティ
-import {
-  moodRawToDisplayText,
-  moodValueToEmoji,
-  normalizeMoodValue,
-} from '../../src/utils/mood';
-
 type Props = {
   events: TimelineEvent[];
   // 🔹 長押しされたときに呼ばれるコールバック
   onLongPressEvent?: (event: TimelineEvent) => void;
 };
 
-// 🌟 type ごとのアイコン＆カラーを定義（テーマ依存）
+// 🌟 type ごとのアイコン＆カラーを定義（気分もここでは単純に event.emoji を使う）
 function getEventMeta(
   event: TimelineEvent,
   theme: SerenoteTheme
@@ -41,43 +34,30 @@ function getEventMeta(
     case 'wake':
       // 起床 → 青系
       return { icon: '🌅', color: theme.colors.accentBlue };
-
     case 'sleep':
       // 睡眠 → 専用カラー
       return { icon: '🌙', color: theme.colors.accentSleep };
-
     case 'med':
       // 薬
       return { icon: '💊', color: theme.colors.accentMeds };
-
-    case 'mood': {
-      // 🌈 気分イベント → moodScore (1〜5 or -2〜+2) から絵文字を決定
-      const normalized = normalizeMoodValue(event.moodScore ?? null);
-      const emoji =
-        normalized != null
-          ? moodValueToEmoji(normalized)
-          : event.emoji ?? '🙂';
-
+    case 'mood':
+      // 気分 → 保存されている emoji / label をそのまま使う
       return {
-        icon: emoji,
+        icon: event.emoji ?? '🙂',
         color: theme.colors.accentMood,
       };
-    }
-
     case 'symptom':
       // 症状 → ノート系のアクセントを流用
       return {
         icon: event.emoji ?? '😣',
         color: theme.colors.accentNotes,
       };
-
     case 'activity':
       // 行動 → グリーン系
       return {
         icon: event.emoji ?? '🏃‍♂️',
         color: theme.colors.accentGreen,
       };
-
     case 'note':
     default:
       return {
@@ -98,16 +78,14 @@ const TimelineItemCard: React.FC<ItemProps> = memo(
     const { icon, color } = getEventMeta(event, theme as SerenoteTheme);
     const isPlanned = event.planned;
 
+    // 🌟 表示用アイコン / ラベル
+    const displayIcon = icon;
+    const displayLabel = event.label;
+
     // 🌟 表示用の時間（endTime があれば 19:00 – 19:30 形式）
     const timeLabel = event.endTime
       ? `${event.time} – ${event.endTime}`
       : event.time;
-
-    // 🌟 メインラベル（気分だけは moodScore から動的生成）
-    const mainLabel =
-      event.type === 'mood'
-        ? moodRawToDisplayText(event.moodScore ?? null)
-        : event.label;
 
     return (
       <View style={styles.itemRow}>
@@ -160,7 +138,7 @@ const TimelineItemCard: React.FC<ItemProps> = memo(
                 isPlanned && styles.iconTextPlanned,
               ]}
             >
-              {icon}
+              {displayIcon}
             </Text>
           </View>
 
@@ -176,7 +154,9 @@ const TimelineItemCard: React.FC<ItemProps> = memo(
               ]}
               numberOfLines={2}
             >
-              {mainLabel}
+              {event.type === 'mood'
+                ? `気分: ${displayLabel}`
+                : displayLabel}
             </Text>
 
             {event.memo ? (

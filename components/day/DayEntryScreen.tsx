@@ -58,7 +58,7 @@ import { useSubscription } from '../../src/subscription/useSubscription';
 // 🆕 日付ユーティリティ
 import { getNextDateKey, getPrevDateKey } from '../../src/utils/dateKey';
 
-// 🆕 気分ユーティリティ
+// 🆕 気分ユーティリティ（-2〜+2 を 1〜5 に正規化してラベル・絵文字化）
 import {
   moodValueToEmoji,
   moodValueToLabel,
@@ -176,7 +176,7 @@ export const DayEntryScreen: React.FC<Props> = ({
   const wakeModal = useWakeModal();
   // 🌙 就寝
   const sleepModal = useSleepModal();
-  // 🙂 気分
+  // 🙂 気分（-2〜+2）
   const moodModal = useMoodModal();
   // 🏃 行動
   const activityModal = useActivityModal();
@@ -202,6 +202,7 @@ export const DayEntryScreen: React.FC<Props> = ({
     }
 
     setEditingMoodEvent(null);
+    // 中立 0 からスタート（-2〜+2）
     moodModal.setMood(0);
     moodModal.setMemoText('');
     moodModal.setTimeText('');
@@ -228,7 +229,7 @@ export const DayEntryScreen: React.FC<Props> = ({
       };
     }
 
-    // 気分（1〜5 / -2〜+2 どちらでも OK）
+    // 気分（entry.mood.value は -2〜+2 / 1〜5 どちらでも OK として受ける）
     let moodDisplay = '—';
     const normalized = normalizeMoodValue(entry.mood?.value);
     if (normalized != null) {
@@ -451,8 +452,6 @@ export const DayEntryScreen: React.FC<Props> = ({
 
   // 「＋気分」ボタン → 新規モード（Free / Pro 制限）
   const handlePressAddMood = () => {
-    // 既存の気分イベント編集の場合は制限なし（ここは新規だけなので関係なし）
-
     if (!isPro && moodEventCount >= FREE_MOOD_LIMIT_PER_DAY) {
       Alert.alert(
         'SereNote Pro',
@@ -472,6 +471,7 @@ export const DayEntryScreen: React.FC<Props> = ({
     }
 
     setEditingMoodEvent(null);
+    // 新規は 0（ふつう）から
     moodModal.setMood(0);
     moodModal.setMemoText('');
     moodModal.setTimeText('');
@@ -832,11 +832,21 @@ export const DayEntryScreen: React.FC<Props> = ({
 
                 const anyEvent = event as any;
 
-                // 🆕 moodValue(-2〜+2) があればそれを優先
+                // 🆕 1) 新仕様: moodValue(-2〜+2) を優先
                 if (typeof anyEvent.moodValue === 'number') {
-                  moodModal.setMood(anyEvent.moodValue);
-                } else {
-                  // 従来の label ベースの fallback（後方互換）
+                  const raw = anyEvent.moodValue as number;
+                  const clamped = Math.max(-2, Math.min(2, raw));
+                  moodModal.setMood(clamped as any);
+                }
+                // 2) 旧仕様の moodScore(1〜5 想定) があれば変換
+                else if (typeof anyEvent.moodScore === 'number') {
+                  const score = anyEvent.moodScore as number; // 1〜5
+                  const centered = score - 3; // 1→-2, 2→-1, 3→0, 4→1, 5→2
+                  const clamped = Math.max(-2, Math.min(2, centered));
+                  moodModal.setMood(clamped as any);
+                }
+                // 3) それもない場合は label からの後方互換
+                else {
                   switch (event.label) {
                     case 'とてもつらい':
                       moodModal.setMood(-2);

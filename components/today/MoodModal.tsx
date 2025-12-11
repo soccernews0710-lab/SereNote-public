@@ -19,7 +19,7 @@ type Props = {
   onRequestClose: () => void;
   onConfirm: () => void;
 
-  // 1〜5 の気分値
+  // -2 〜 +2 の気分値
   mood: MoodValue;
   setMood: (value: MoodValue) => void;
 
@@ -31,11 +31,11 @@ type Props = {
 };
 
 const MOOD_OPTIONS: { value: MoodValue; label: string; emoji: string }[] = [
-  { value: 1, label: 'とてもつらい', emoji: '😭' },
-  { value: 2, label: 'つらい', emoji: '😣' },
-  { value: 3, label: 'ふつう', emoji: '😐' },
-  { value: 4, label: '少し良い', emoji: '🙂' },
-  { value: 5, label: 'とても良い', emoji: '😄' },
+  { value: -2, label: 'とてもつらい', emoji: '😭' },
+  { value: -1, label: 'つらい', emoji: '😣' },
+  { value: 0, label: 'ふつう', emoji: '😐' },
+  { value: 1, label: '少し良い', emoji: '🙂' },
+  { value: 2, label: 'とても良い', emoji: '😄' },
 ];
 
 const MoodModal: React.FC<Props> = ({

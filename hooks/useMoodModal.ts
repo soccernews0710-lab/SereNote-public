@@ -2,15 +2,15 @@
 import { useState } from 'react';
 import type { TimelineEvent } from '../src/types/timeline';
 
-// 5段階の気分スコア（データの正規形）
 /**
- * 1: とてもつらい
- * 2: つらい
- * 3: ふつう
- * 4: 少し良い
- * 5: とても良い
+ * 気分スコア（-2〜+2）
+ * -2: とてもつらい
+ * -1: つらい
+ *  0: ふつう
+ *  1: 少し良い
+ *  2: とても良い
  */
-export type MoodValue = 1 | 2 | 3 | 4 | 5;
+export type MoodValue = -2 | -1 | 0 | 1 | 2;
 
 // "HH:MM" を現在時刻から作る
 const getCurrentTimeString = () => {
@@ -40,8 +40,8 @@ type UseMoodModalReturn = {
 
 export const useMoodModal = (): UseMoodModalReturn => {
   const [visible, setVisible] = useState(false);
-  // デフォルトは「ふつう」= 3
-  const [mood, setMood] = useState<MoodValue>(3);
+  // デフォルトは「ふつう」= 0
+  const [mood, setMood] = useState<MoodValue>(0);
   const [memoText, setMemoText] = useState('');
   const [timeText, setTimeText] = useState('');
 
@@ -53,18 +53,18 @@ export const useMoodModal = (): UseMoodModalReturn => {
     setVisible(false);
   };
 
-  // 気分スコア(1〜5) → ラベル & 絵文字
+  // 気分スコア(-2〜+2) → ラベル & 絵文字
   const buildMoodLabelAndEmoji = (): { label: string; emoji: string } => {
     switch (mood) {
-      case 1:
+      case -2:
         return { label: 'とてもつらい', emoji: '😭' };
-      case 2:
+      case -1:
         return { label: 'つらい', emoji: '😣' };
-      case 3:
+      case 0:
         return { label: 'ふつう', emoji: '😐' };
-      case 4:
+      case 1:
         return { label: '少し良い', emoji: '🙂' };
-      case 5:
+      case 2:
       default:
         return { label: 'とても良い', emoji: '😄' };
     }
@@ -89,8 +89,8 @@ export const useMoodModal = (): UseMoodModalReturn => {
       planned: false,
       emoji,
       memo: memoText.trim() || undefined,
-      // 🌟 正規形として 1〜5 の moodScore を保存
-      moodScore: mood,
+      // 🌟 正規形として -2〜+2 の moodValue を保存
+      moodValue: mood,
     };
 
     onAdd(newEvent);

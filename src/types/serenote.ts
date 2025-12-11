@@ -8,14 +8,18 @@ export type DateKey = string;
 export type TimeText = string;
 
 /**
- * 気分（1〜5段階）
- * 1: とてもつらい
- * 2: つらい
- * 3: ふつう
- * 4: 少し良い
- * 5: とても良い
+ * 気分スコア（-2〜+2 の 5段階）
+ *
+ * -2: とてもつらい
+ * -1: つらい
+ *  0: ふつう
+ *  1: 少し良い
+ *  2: とても良い
+ *
+ * 👉 内部ではこの -2〜+2 を「生の値」として持っておく。
+ *    グラフや集計は utils/mood.ts 側で 1〜5 に変換して使う。
  */
-export type SerenoteMoodValue = 1 | 2 | 3 | 4 | 5;
+export type SerenoteMoodValue = -2 | -1 | 0 | 1 | 2;
 
 export type SerenoteMood = {
   value: SerenoteMoodValue;
@@ -26,7 +30,7 @@ export type SerenoteMood = {
 export type SerenoteSleep = {
   bedTime?: TimeText | null;  // 寝た時間（任意）
   wakeTime?: TimeText | null; // 起きた時間（任意）
-  totalMinutes?: number; 
+  totalMinutes?: number;
   memo?: string | null;       // 眠れなかった等のメモ（任意）
 };
 
@@ -63,7 +67,6 @@ export type SerenoteEntry = {
   medications?: SerenoteMedicationLog[];
   symptoms?: SerenoteSymptomLog[];
   notes?: SerenoteNote[];
-
 
   // ⭐ Today 用タイムラインをそのまま保存しておくフィールド
   timelineEvents?: TimelineEvent[];
