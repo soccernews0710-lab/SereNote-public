@@ -1,15 +1,20 @@
 // components/today/MoodModal.tsx
 import React from 'react';
 import {
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useTheme } from '../../src/theme/useTheme';
+import TimePicker from '../common/TimePicker';
 
 // useMoodModal で使っている MoodValue を import
 import type { MoodValue } from '../../hooks/useMoodModal';
@@ -19,7 +24,7 @@ type Props = {
   onRequestClose: () => void;
   onConfirm: () => void;
 
-  // -2 〜 +2 の気分値
+  // 1〜5 の気分値
   mood: MoodValue;
   setMood: (value: MoodValue) => void;
 
@@ -30,12 +35,18 @@ type Props = {
   setTimeText: (text: string) => void;
 };
 
+// 1〜5 に統一
+// 1: とてもつらい
+// 2: つらい
+// 3: ふつう
+// 4: 少し良い
+// 5: とても良い
 const MOOD_OPTIONS: { value: MoodValue; label: string; emoji: string }[] = [
-  { value: -2, label: 'とてもつらい', emoji: '😭' },
-  { value: -1, label: 'つらい', emoji: '😣' },
-  { value: 0, label: 'ふつう', emoji: '😐' },
-  { value: 1, label: '少し良い', emoji: '🙂' },
-  { value: 2, label: 'とても良い', emoji: '😄' },
+  { value: 1, label: 'とてもつらい', emoji: '😭' },
+  { value: 2, label: 'つらい', emoji: '😣' },
+  { value: 3, label: 'ふつう', emoji: '😐' },
+  { value: 4, label: '少し良い', emoji: '🙂' },
+  { value: 5, label: 'とても良い', emoji: '😄' },
 ];
 
 const MoodModal: React.FC<Props> = ({
@@ -54,175 +65,171 @@ const MoodModal: React.FC<Props> = ({
   const selected = MOOD_OPTIONS.find(opt => opt.value === mood);
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onRequestClose}
-    >
-      <View style={styles.backdrop}>
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.borderSoft,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.title,
-              { color: theme.colors.textMain },
-            ]}
-          >
-            今日の気分
-          </Text>
-
-          {/* 気分ボタン列 */}
-          <View style={styles.moodRow}>
-            {MOOD_OPTIONS.map(opt => {
-              const active = opt.value === mood;
-              return (
-                <TouchableOpacity
-                  key={opt.value}
+    <Modal visible={visible} transparent animationType="slide">
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={80}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.backdrop}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.borderSoft,
+                },
+              ]}
+            >
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text
                   style={[
-                    styles.moodChip,
+                    styles.title,
+                    { color: theme.colors.textMain },
+                  ]}
+                >
+                  今日の気分
+                </Text>
+
+                {/* 気分ボタン列 */}
+                <View style={styles.moodRow}>
+                  {MOOD_OPTIONS.map(opt => {
+                    const active = opt.value === mood;
+                    return (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[
+                          styles.moodChip,
+                          {
+                            backgroundColor: active
+                              ? theme.colors.primary
+                              : theme.colors.surfaceAlt,
+                            borderColor: active
+                              ? 'transparent'
+                              : theme.colors.borderSoft,
+                          },
+                        ]}
+                        onPress={() => setMood(opt.value)}
+                        activeOpacity={0.85}
+                      >
+                        <Text
+                          style={[
+                            styles.moodEmoji,
+                            {
+                              color: active
+                                ? '#FFFFFF'
+                                : theme.colors.textMain,
+                            },
+                          ]}
+                        >
+                          {opt.emoji}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.moodLabel,
+                            {
+                              color: active
+                                ? '#FFFFFF'
+                                : theme.colors.textSub,
+                            },
+                          ]}
+                        >
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* 選択中表示 */}
+                <Text
+                  style={[
+                    styles.selectedText,
+                    { color: theme.colors.textSub },
+                  ]}
+                >
+                  {selected
+                    ? `選択中: ${selected.emoji} ${selected.label}`
+                    : 'まだ選択されていません'}
+                </Text>
+
+                {/* 🕒 時刻（TimePicker） */}
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.colors.textSub },
+                  ]}
+                >
+                  記録する時間
+                </Text>
+                <TimePicker value={timeText} onChange={setTimeText} />
+
+                {/* メモ入力 */}
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.colors.textSub, marginTop: 10 },
+                  ]}
+                >
+                  メモ（任意）
+                </Text>
+                <TextInput
+                  value={memoText}
+                  onChangeText={setMemoText}
+                  placeholder="気分の理由などを書いておけます"
+                  placeholderTextColor={theme.colors.textSub}
+                  multiline
+                  style={[
+                    styles.textArea,
                     {
-                      backgroundColor: active
-                        ? theme.colors.primary
-                        : theme.colors.surfaceAlt,
-                      borderColor: active
-                        ? 'transparent'
-                        : theme.colors.borderSoft,
+                      color: theme.colors.textMain,
+                      borderColor: theme.colors.borderSoft,
+                      backgroundColor: theme.colors.surfaceAlt,
                     },
                   ]}
-                  onPress={() => setMood(opt.value)}
-                  activeOpacity={0.85}
+                  textAlignVertical="top"
+                />
+              </ScrollView>
+
+              {/* ボタン行 */}
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.secondaryButton,
+                    { borderColor: theme.colors.borderSoft },
+                  ]}
+                  onPress={onRequestClose}
                 >
                   <Text
                     style={[
-                      styles.moodEmoji,
-                      { color: active ? '#FFFFFF' : theme.colors.textMain },
+                      styles.secondaryButtonText,
+                      { color: theme.colors.textSub },
                     ]}
                   >
-                    {opt.emoji}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.moodLabel,
-                      { color: active ? '#FFFFFF' : theme.colors.textSub },
-                    ]}
-                  >
-                    {opt.label}
+                    キャンセル
                   </Text>
                 </TouchableOpacity>
-              );
-            })}
+
+                <TouchableOpacity
+                  style={[
+                    styles.primaryButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
+                  onPress={onConfirm}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.primaryButtonText}>保存する</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-
-          {/* 選択中表示 */}
-          <Text
-            style={[
-              styles.selectedText,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            {selected
-              ? `選択中: ${selected.emoji} ${selected.label}`
-              : 'まだ選択されていません'}
-          </Text>
-
-          {/* 時刻入力 */}
-          <View style={styles.fieldBlock}>
-            <Text
-              style={[
-                styles.fieldLabel,
-                { color: theme.colors.textSub },
-              ]}
-            >
-              記録する時間
-            </Text>
-            <TextInput
-              value={timeText}
-              onChangeText={setTimeText}
-              placeholder="例: 09:30"
-              placeholderTextColor={theme.colors.textSub}
-              keyboardType={
-                Platform.OS === 'ios'
-                  ? 'numbers-and-punctuation'
-                  : 'numeric'
-              }
-              style={[
-                styles.input,
-                {
-                  color: theme.colors.textMain,
-                  borderColor: theme.colors.borderSoft,
-                  backgroundColor: theme.colors.surfaceAlt,
-                },
-              ]}
-            />
-          </View>
-
-          {/* メモ入力 */}
-          <View style={styles.fieldBlock}>
-            <Text
-              style={[
-                styles.fieldLabel,
-                { color: theme.colors.textSub },
-              ]}
-            >
-              メモ（任意）
-            </Text>
-            <TextInput
-              value={memoText}
-              onChangeText={setMemoText}
-              placeholder="気分の理由などを書いておけます"
-              placeholderTextColor={theme.colors.textSub}
-              multiline
-              style={[
-                styles.textArea,
-                {
-                  color: theme.colors.textMain,
-                  borderColor: theme.colors.borderSoft,
-                  backgroundColor: theme.colors.surfaceAlt,
-                },
-              ]}
-            />
-          </View>
-
-          {/* ボタン行 */}
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[
-                styles.secondaryButton,
-                { borderColor: theme.colors.borderSoft },
-              ]}
-              onPress={onRequestClose}
-            >
-              <Text
-                style={[
-                  styles.secondaryButtonText,
-                  { color: theme.colors.textSub },
-                ]}
-              >
-                キャンセル
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                { backgroundColor: theme.colors.primary },
-              ]}
-              onPress={onConfirm}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.primaryButtonText}>保存する</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -230,22 +237,32 @@ const MoodModal: React.FC<Props> = ({
 export default MoodModal;
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 18,
   },
   card: {
+    width: '100%',
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderWidth: 1,
+    maxHeight: '90%',
+  },
+  scrollContent: {
+    paddingBottom: 8,
   },
   title: {
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 10,
+    textAlign: 'center',
   },
   moodRow: {
     flexDirection: 'row',
@@ -272,20 +289,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 10,
   },
-  fieldBlock: {
-    marginTop: 4,
-    marginBottom: 8,
-  },
   fieldLabel: {
     fontSize: 12,
     marginBottom: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: Platform.OS === 'ios' ? 8 : 6,
-    fontSize: 13,
   },
   textArea: {
     borderWidth: 1,

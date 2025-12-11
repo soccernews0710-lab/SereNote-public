@@ -4,7 +4,6 @@ import type {
   DateKey,
   SerenoteEntry,
   SerenoteEntryMap,
-  SerenoteMoodValue,
 } from '../types/serenote';
 
 // 🆕 日付ユーティリティ
@@ -13,6 +12,12 @@ import {
   getDateRange,
   getPrevDateKey,
 } from '../utils/dateKey';
+
+// 🆕 気分ユーティリティ
+import {
+  moodAverageToLabel,
+  normalizeMoodValue,
+} from '../utils/mood';
 
 // ========= 型 =========
 
@@ -132,17 +137,21 @@ export function calcDailyMoodAverage(
   min: number | null;
   max: number | null;
 } {
-  if (!entry || !(entry as any).mood || (entry as any).mood.value == null) {
+  if (!entry || !(entry as any).mood) {
     return { avg: null, min: null, max: null };
   }
 
-  const raw = (entry as any).mood.value as SerenoteMoodValue;
-  const clamped = Math.min(5, Math.max(1, raw));
+  // entry.mood.value は 1〜5 or -2〜+2 を想定
+  const normalized = normalizeMoodValue((entry as any).mood.value);
+  if (normalized == null) {
+    return { avg: null, min: null, max: null };
+  }
 
+  // 現状、1日1つの mood なので avg/min/max 同じでOK
   return {
-    avg: clamped,
-    min: clamped,
-    max: clamped,
+    avg: normalized,
+    min: normalized,
+    max: normalized,
   };
 }
 
@@ -253,12 +262,7 @@ export function calcMoodSummary(rows: StatsRow[]) {
   const sum = values.reduce((acc, v) => acc + v, 0);
   const avg = sum / values.length;
 
-  let avgLabel = '—';
-  if (avg < 1.5) avgLabel = 'とてもつらい';
-  else if (avg < 2.5) avgLabel = 'つらい';
-  else if (avg < 3.5) avgLabel = 'ふつう';
-  else if (avg < 4.5) avgLabel = '少し良い';
-  else avgLabel = 'とても良い';
+  const avgLabel = moodAverageToLabel(avg);
 
   const max = Math.max(...values);
   const min = Math.min(...values);
@@ -349,12 +353,7 @@ export function calcOverviewSummary(rows: StatsRow[]) {
   if (moodValues.length > 0) {
     const sum = moodValues.reduce((acc, v) => acc + v, 0);
     avgMoodScore = sum / moodValues.length;
-
-    if (avgMoodScore < 1.5) avgMoodLabel = 'とてもつらい';
-    else if (avgMoodScore < 2.5) avgMoodLabel = 'つらい';
-    else if (avgMoodScore < 3.5) avgMoodLabel = 'ふつう';
-    else if (avgMoodScore < 4.5) avgMoodLabel = '少し良い';
-    else avgMoodLabel = 'とても良い';
+    avgMoodLabel = moodAverageToLabel(avgMoodScore);
   }
 
   // 平均睡眠時間（h）

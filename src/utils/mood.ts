@@ -134,6 +134,19 @@ export function moodIndexToRaw(index: number): number {
   return idx - 2;
 }
 
+/**
+ * 平均スコア(1〜5) からざっくりラベルを出す用
+ * Stats のサマリーで使う。
+ */
+export function moodAverageToLabel(avg: number | null): string {
+  if (avg == null) return '—';
+  if (avg < 1.5) return 'とてもつらい';
+  if (avg < 2.5) return 'つらい';
+  if (avg < 3.5) return 'ふつう';
+  if (avg < 4.5) return '少し良い';
+  return 'とても良い';
+}
+
 // ===== 内部ユーティリティ =====
 
 function clamp(v: number, min: number, max: number): number {
