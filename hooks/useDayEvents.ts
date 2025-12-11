@@ -18,12 +18,15 @@ import {
   SerenoteNote,
   SerenoteSleep,
   SerenoteSymptomLog,
-  createEmptySerenoteEntry,
+  createEmptySerenoteEntry
 } from '../src/types/serenote';
 
 import type { SerenoteMoodValue } from '../src/types/mood';
 import type { TimelineEvent } from '../src/types/timeline';
-import { normalizeMoodValue } from '../src/utils/mood';
+import {
+  moodLabelToCenteredValue,
+  normalizeMoodValue,
+} from '../src/utils/mood';
 
 /**
  * 今日の日付キーを YYYY-MM-DD 形式で返すユーティリティ。
@@ -53,27 +56,6 @@ type UseDayEventsResult = {
   /** ストレージからの読込が終わったかどうか */
   loaded: boolean;
 };
-
-/**
- * ラベル → SerenoteMoodValue への変換（既存の日本語ラベルに合わせる）
- * ※ 古いデータで moodValue が無い場合のフォールバック用
- */
-function moodLabelToValue(label: string): SerenoteMoodValue {
-  switch (label) {
-    case 'とてもつらい':
-      return -2;
-    case 'つらい':
-      return -1;
-    case 'ふつう':
-      return 0;
-    case '少し良い':
-      return 1;
-    case 'とても良い':
-      return 2;
-    default:
-      return 0;
-  }
-}
 
 /**
  * 読み込み時の軽量マイグレーション：
@@ -154,7 +136,7 @@ function buildEntryFromEvents(
     const value: SerenoteMoodValue =
       typeof last.moodValue === 'number'
         ? (last.moodValue as SerenoteMoodValue)
-        : moodLabelToValue(last.label ?? '');
+        : moodLabelToCenteredValue(last.label ?? '');
 
     mood = {
       value,

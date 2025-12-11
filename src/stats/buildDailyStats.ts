@@ -19,6 +19,14 @@ import type { TimelineEvent } from '../types/timeline';
 // 🆕 日付ユーティリティ（前日キー取得）
 import { getPrevDateKey } from '../utils/dateKey';
 
+// 🆕 気分ユーティリティ
+import {
+  moodLabelToCenteredValue,
+  moodValueToLabel as moodPlainLabel,
+  moodValueToEmoji,
+  normalizeMoodValue,
+} from '../utils/mood';
+
 // "HH:mm" → 分（0〜1439）
 // フォーマット不正なら null
 function parseTimeToMinutes(time: string | null | undefined): number | null {
@@ -42,39 +50,35 @@ function parseTimeToMinutes(time: string | null | undefined): number | null {
 
 // タイムラインの mood イベントから 1〜5 スケールの値を抽出
 function convertTimelineMoodToScore(event: TimelineEvent): number | null {
-  // もし event に moodValue（-2〜+2）があればそれを優先
   const anyEvent = event as any;
+
+  // 1) 新フォーマット: moodValue(-2〜+2 or 1〜5) を normalize して使う
   if (typeof anyEvent.moodValue === 'number') {
-    const mv = anyEvent.moodValue; // -2〜+2 の想定
-    const normalized = mv + 3; // -2→1, -1→2, 0→3, 1→4, 2→5
-    if (normalized >= 1 && normalized <= 5) {
-      return normalized;
-    }
+    const normalized = normalizeMoodValue(anyEvent.moodValue);
+    return normalized ?? null;
   }
 
-  // なければ label から推定
-  switch (event.label) {
-    case 'とてもつらい':
-      return 1;
-    case 'つらい':
-      return 2;
-    case 'ふつう':
-      return 3;
-    case '少し良い':
-      return 4;
-    case 'とても良い':
-      return 5;
-    default:
-      return null;
+  // 2) 旧フォーマット: moodScore(1〜5) があればそれも normalize
+  if (typeof anyEvent.moodScore === 'number') {
+    const normalized = normalizeMoodValue(anyEvent.moodScore);
+    return normalized ?? null;
   }
+
+  // 3) さらに古い: label だけの場合 → label→-2〜+2→1〜5
+  if (typeof event.label === 'string' && event.label.length > 0) {
+    const centered = moodLabelToCenteredValue(event.label); // -2〜+2
+    const normalized = normalizeMoodValue(centered);        // 1〜5
+    return normalized ?? null;
+  }
+
+  return null;
 }
 
-// SerenoteEntry.mood.value (1〜5) を安全に取得
+// SerenoteEntry.mood.value (-2〜+2 / 1〜5 両対応) を 1〜5 に正規化
 function getEntryMoodValue(entry: SerenoteEntry): number | null {
-  const v = entry.mood?.value;
-  if (!v) return null;
-  if (v >= 1 && v <= 5) return v;
-  return null;
+  const raw = entry.mood?.value;
+  if (raw == null) return null;
+  return normalizeMoodValue(raw);
 }
 
 // 平均値 → 代表値（1〜5）に丸める
@@ -87,16 +91,13 @@ function roundMoodAverage(avgRaw: number): number {
   return 5;
 }
 
-// 1〜5 → ラベル
-function moodValueToLabel(v: number): string {
-  const map: Record<number, string> = {
-    1: '😭 とてもつらい',
-    2: '😣 つらい',
-    3: '😐 ふつう',
-    4: '🙂 少し良い',
-    5: '😄 とても良い',
-  };
-  return map[v] ?? '—';
+// 1〜5 → 「😄 とても良い」形式のラベル
+function moodValueToDisplayLabel(v: number): string {
+  const normalized = normalizeMoodValue(v);
+  if (normalized == null) return '—';
+  const label = moodPlainLabel(normalized);      // 例: とても良い
+  const emoji = moodValueToEmoji(normalized);    // 例: 😄
+  return `${emoji} ${label}`;
 }
 
 // volatility → 安定度ラベル
@@ -144,7 +145,7 @@ function buildMoodStats(
         maxValue: v,
         volatility: 0,
         samples: 1,
-        label: moodValueToLabel(v),
+        label: moodValueToDisplayLabel(v),
         stabilityLabel: '安定していた日',
       };
     }
@@ -215,7 +216,7 @@ function buildMoodStats(
     maxValue,
     volatility,
     samples,
-    label: moodValueToLabel(avgRounded),
+    label: moodValueToDisplayLabel(avgRounded),
     stabilityLabel,
   };
 }

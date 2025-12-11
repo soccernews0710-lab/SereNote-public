@@ -147,6 +147,31 @@ export function moodAverageToLabel(avg: number | null): string {
   return 'とても良い';
 }
 
+/**
+ * 📦 旧データ互換用：
+ * 日本語ラベルから -2〜+2 のセンタリング値に変換する。
+ * （保存済みの古い label しか持っていない mood イベント向け）
+ */
+export function moodLabelToCenteredValue(
+  label: string,
+): SerenoteMoodValue {
+  switch (label) {
+    case 'とてもつらい':
+      return -2;
+    case 'つらい':
+      return -1;
+    case 'ふつう':
+      return 0;
+    case '少し良い':
+      return 1;
+    case 'とても良い':
+      return 2;
+    default:
+      // よくわからないラベルは中立扱い
+      return 0;
+  }
+}
+
 // ===== 内部ユーティリティ =====
 
 function clamp(v: number, min: number, max: number): number {

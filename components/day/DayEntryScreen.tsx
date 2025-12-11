@@ -60,6 +60,7 @@ import { getNextDateKey, getPrevDateKey } from '../../src/utils/dateKey';
 
 // 🆕 気分ユーティリティ（-2〜+2 を 1〜5 に正規化してラベル・絵文字化）
 import {
+  moodLabelToCenteredValue,
   moodValueToEmoji,
   moodValueToLabel,
   normalizeMoodValue,
@@ -847,25 +848,8 @@ export const DayEntryScreen: React.FC<Props> = ({
                 }
                 // 3) それもない場合は label からの後方互換
                 else {
-                  switch (event.label) {
-                    case 'とてもつらい':
-                      moodModal.setMood(-2);
-                      break;
-                    case 'つらい':
-                      moodModal.setMood(-1);
-                      break;
-                    case 'ふつう':
-                      moodModal.setMood(0);
-                      break;
-                    case '少し良い':
-                      moodModal.setMood(1);
-                      break;
-                    case 'とても良い':
-                      moodModal.setMood(2);
-                      break;
-                    default:
-                      moodModal.setMood(0);
-                  }
+                  const centered = moodLabelToCenteredValue(event.label);
+                  moodModal.setMood(centered as any);
                 }
 
                 moodModal.openModal();
