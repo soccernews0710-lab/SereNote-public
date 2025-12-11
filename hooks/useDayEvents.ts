@@ -1,4 +1,6 @@
 // hooks/useDayEvents.ts
+
+import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 
 // ✅ Storage からは「読み書き系」だけ
@@ -13,13 +15,13 @@ import {
   SerenoteEntry,
   SerenoteMedicationLog,
   SerenoteMood,
-  SerenoteMoodValue,
   SerenoteNote,
   SerenoteSleep,
   SerenoteSymptomLog,
-  createEmptySerenoteEntry, // ← ここに一緒に
+  createEmptySerenoteEntry,
 } from '../src/types/serenote';
 
+import type { SerenoteMoodValue } from '../src/types/mood';
 import type { TimelineEvent } from '../src/types/timeline';
 
 /**
@@ -41,11 +43,11 @@ type UseDayEventsOptions = {
 type UseDayEventsResult = {
   /** 1日分の構造化データ（mood / sleep / meds / ...） */
   entry: SerenoteEntry | null;
-  setEntry: React.Dispatch<React.SetStateAction<SerenoteEntry | null>>;
+  setEntry: Dispatch<SetStateAction<SerenoteEntry | null>>;
 
   /** タイムライン用の生データ */
   events: TimelineEvent[];
-  setEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
+  setEvents: Dispatch<SetStateAction<TimelineEvent[]>>;
 
   /** ストレージからの読込が終わったかどうか */
   loaded: boolean;
@@ -53,21 +55,22 @@ type UseDayEventsResult = {
 
 /**
  * ラベル → SerenoteMoodValue への変換（既存の日本語ラベルに合わせる）
+ * ※ 古いデータで moodValue が無い場合のフォールバック用
  */
 function moodLabelToValue(label: string): SerenoteMoodValue {
   switch (label) {
     case 'とてもつらい':
-      return 1;
+      return -2;
     case 'つらい':
-      return 2;
+      return -1;
     case 'ふつう':
-      return 3;
+      return 0;
     case '少し良い':
-      return 4;
+      return 1;
     case 'とても良い':
-      return 5;
+      return 2;
     default:
-      return 3;
+      return 0;
   }
 }
 
@@ -79,43 +82,51 @@ function moodLabelToValue(label: string): SerenoteMoodValue {
 function buildEntryFromEvents(
   dateKey: DateKey,
   events: TimelineEvent[],
-  prevEntry?: SerenoteEntry | null
+  prevEntry?: SerenoteEntry | null,
 ): SerenoteEntry {
-  const base: SerenoteEntry =
-    prevEntry ?? createEmptySerenoteEntry(dateKey);
+  const base: SerenoteEntry = prevEntry ?? createEmptySerenoteEntry(dateKey);
 
   // --- mood ---
   let mood: SerenoteMood | null | undefined = base.mood;
-  const moodEvents = events.filter(e => e.type === 'mood');
+  const moodEvents = events.filter((e) => e.type === 'mood');
+
   if (moodEvents.length > 0) {
     const last = moodEvents[moodEvents.length - 1];
-    const value = moodLabelToValue(last.label ?? '');
+
+    // ① 新フォーマット: moodValue (-2〜+2) を優先
+    // ② それが無い古いイベントは label から変換
+    const value: SerenoteMoodValue =
+      typeof last.moodValue === 'number'
+        ? last.moodValue
+        : moodLabelToValue(last.label ?? '');
+
     mood = {
       value,
       time: last.time ?? null,
       memo: last.memo ?? null,
     };
   } else {
+    // その日の mood イベントが一つも無ければ mood は undefined 扱い
     mood = undefined;
   }
 
   // --- sleep ---
   let sleep: SerenoteSleep | null | undefined = base.sleep ?? {};
   const sleepEvents = events.filter(
-    e => e.type === 'sleep' || e.type === 'wake'
+    (e) => e.type === 'sleep' || e.type === 'wake',
   );
 
   if (sleepEvents.length > 0) {
     const lastSleep = sleepEvents
-      .filter(e => e.type === 'sleep')
+      .filter((e) => e.type === 'sleep')
       .slice(-1)[0];
     const lastWake = sleepEvents
-      .filter(e => e.type === 'wake')
+      .filter((e) => e.type === 'wake')
       .slice(-1)[0];
 
     sleep = {
-      bedTime: lastSleep?.time ?? (sleep?.bedTime ?? null),
-      wakeTime: lastWake?.time ?? (sleep?.wakeTime ?? null),
+      bedTime: lastSleep?.time ?? sleep?.bedTime ?? null,
+      wakeTime: lastWake?.time ?? sleep?.wakeTime ?? null,
       memo: sleep?.memo ?? null,
     };
   } else if (!base.sleep) {
@@ -123,8 +134,8 @@ function buildEntryFromEvents(
   }
 
   // --- medications ---
-  const medEvents = events.filter(e => e.type === 'med');
-  const medications: SerenoteMedicationLog[] = medEvents.map(e => ({
+  const medEvents = events.filter((e) => e.type === 'med');
+  const medications: SerenoteMedicationLog[] = medEvents.map((e) => ({
     id: e.id,
     time: e.time ?? '00:00',
     label: e.label || 'お薬',
@@ -132,8 +143,8 @@ function buildEntryFromEvents(
   }));
 
   // --- symptoms ---
-  const symptomEvents = events.filter(e => e.type === 'symptom');
-  const symptoms: SerenoteSymptomLog[] = symptomEvents.map(e => ({
+  const symptomEvents = events.filter((e) => e.type === 'symptom');
+  const symptoms: SerenoteSymptomLog[] = symptomEvents.map((e) => ({
     id: e.id,
     time: e.time ?? '00:00',
     label: e.label ?? '症状',
@@ -142,8 +153,8 @@ function buildEntryFromEvents(
   }));
 
   // --- notes ---
-  const noteEvents = events.filter(e => e.type === 'note');
-  const notes: SerenoteNote[] = noteEvents.map(e => ({
+  const noteEvents = events.filter((e) => e.type === 'note');
+  const notes: SerenoteNote[] = noteEvents.map((e) => ({
     id: e.id,
     time: e.time ?? '00:00',
     text: e.label ?? '',
@@ -171,15 +182,15 @@ function buildEntryFromEvents(
  */
 export function useDayEvents(
   dateKey: DateKey,
-  options?: UseDayEventsOptions
+  options?: UseDayEventsOptions,
 ): UseDayEventsResult {
   const [entry, setEntry] = useState<SerenoteEntry | null>(null);
   const [events, _setEvents] = useState<TimelineEvent[]>(
-    options?.initialEvents ?? []
+    options?.initialEvents ?? [],
   );
   const [loaded, setLoaded] = useState(false);
 
-  // 🔁 日付が変わったとき or 初回マウント時に、その日のエントリを読み込む
+  // 日付が変わったとき or 初回マウント時に、その日のエントリを読み込む
   useEffect(() => {
     let cancelled = false;
 
@@ -219,20 +230,18 @@ export function useDayEvents(
    * events を更新しつつ、SerenoteEntry も再計算して永続化する。
    * 普通の setState と同じように使える。
    */
-  const setEvents: React.Dispatch<
-    React.SetStateAction<TimelineEvent[]
-  >> = useCallback(
-    updater => {
-      _setEvents(prev => {
+  const setEvents: Dispatch<SetStateAction<TimelineEvent[]>> = useCallback(
+    (updater) => {
+      _setEvents((prev) => {
         const next =
           typeof updater === 'function'
             ? (updater as (prev: TimelineEvent[]) => TimelineEvent[])(prev)
             : updater;
 
         // entry を再構築して保存
-        setEntry(prevEntry => {
+        setEntry((prevEntry) => {
           const rebuilt = buildEntryFromEvents(dateKey, next, prevEntry);
-          saveEntryForDate(rebuilt).catch(e => {
+          saveEntryForDate(rebuilt).catch((e) => {
             console.warn('Failed to save day events', e);
           });
           return rebuilt;
@@ -241,7 +250,7 @@ export function useDayEvents(
         return next;
       });
     },
-    [dateKey]
+    [dateKey],
   );
 
   return {

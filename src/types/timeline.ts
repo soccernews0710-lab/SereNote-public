@@ -1,5 +1,7 @@
 // src/types/timeline.ts
 
+import type { SerenoteMoodValue } from './mood';
+
 // タイムラインに登場するイベントの種類
 export type TimelineEventType =
   | 'wake'
@@ -75,16 +77,16 @@ export type TimelineEvent = {
   emoji?: string;
 
   // 💊 新しい薬マスタ方式
-  medId?: string; // どの薬を飲んだか（UserMedication.id）
+  medId?: string;       // どの薬を飲んだか（UserMedication.id）
   medTimeSlot?: MedTimeSlot; // 朝/夜/頓服 など
-  dosageText?: string; // 「1錠 / 5mg」など
+  dosageText?: string;  // 「1錠 / 5mg」など
 
   // 🌟 行動カテゴリ（activity のときメインで使用）
   category?: ActivityCategory;
 
   // 🌟 気分スコア（-2〜+2）
   // -2: とてもつらい / +2: とても良い
-  moodValue?: number;
+  moodValue?: SerenoteMoodValue;
 
   // 共通メモ
   memo?: string;
@@ -95,10 +97,10 @@ export type TimelineEvent = {
 
 // 設定画面で管理する「薬1種類」の情報
 export type UserMedication = {
-  id: string; // uuid 的な一意ID
-  name: string; // 例：クロザリル 25mg
+  id: string;            // uuid 的な一意ID
+  name: string;          // 例：クロザリル 25mg
   defaultDosage?: string; // 例：1錠
-  tags?: string[]; // 「抗精神病薬」など（あとで統計・フィルタ用）
+  tags?: string[];       // 「抗精神病薬」など（あとで統計・フィルタ用）
 };
 
 // 旧: スケジュール単位の定義が必要な場合に使える型（今はあまり使ってないはず）
@@ -114,5 +116,5 @@ export type MedDefinition = {
 // useMedicationNotifications で使う型
 export type ReminderTimes = {
   morning: string | null; // "08:00" など
-  night: string | null; // "20:00" など
+  night: string | null;   // "20:00" など
 };

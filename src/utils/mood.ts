@@ -1,6 +1,6 @@
 // src/utils/mood.ts
 
-import type { SerenoteMoodValue } from '../types/serenote';
+import type { SerenoteMoodValue } from '../types/mood';
 
 /**
  * mood の生値:

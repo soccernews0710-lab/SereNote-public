@@ -13,6 +13,7 @@ import type {
   TimelineEvent,
   TimelineEventType,
 } from '../../src/types/timeline';
+import { describeMood } from '../../src/utils/mood';
 
 type Props = {
   events: TimelineEvent[];
@@ -20,7 +21,7 @@ type Props = {
   onLongPressEvent?: (event: TimelineEvent) => void;
 };
 
-// 🌟 type ごとのアイコン＆カラーを定義（気分もここでは単純に event.emoji を使う）
+// 🌟 type ごとのアイコン＆カラーを定義（気分は moodValue があれば describeMood を優先）
 function getEventMeta(
   event: TimelineEvent,
   theme: SerenoteTheme
@@ -40,12 +41,20 @@ function getEventMeta(
     case 'med':
       // 薬
       return { icon: '💊', color: theme.colors.accentMeds };
-    case 'mood':
-      // 気分 → 保存されている emoji / label をそのまま使う
+    case 'mood': {
+      // 気分 → moodValue があれば describeMood から emoji を取る
+      if (typeof event.moodValue === 'number') {
+        const { emoji } = describeMood(event.moodValue);
+        return {
+          icon: emoji,
+          color: theme.colors.accentMood,
+        };
+      }
       return {
         icon: event.emoji ?? '🙂',
         color: theme.colors.accentMood,
       };
+    }
     case 'symptom':
       // 症状 → ノート系のアクセントを流用
       return {
@@ -78,9 +87,15 @@ const TimelineItemCard: React.FC<ItemProps> = memo(
     const { icon, color } = getEventMeta(event, theme as SerenoteTheme);
     const isPlanned = event.planned;
 
-    // 🌟 表示用アイコン / ラベル
-    const displayIcon = icon;
-    const displayLabel = event.label;
+    // 🌟 表示用アイコン / ラベル（気分は describeMood を優先）
+    let displayIcon = icon;
+    let displayLabel = event.label;
+
+    if (event.type === 'mood' && typeof event.moodValue === 'number') {
+      const { label, emoji } = describeMood(event.moodValue);
+      displayIcon = emoji;
+      displayLabel = label; // 「とても良い」など
+    }
 
     // 🌟 表示用の時間（endTime があれば 19:00 – 19:30 形式）
     const timeLabel = event.endTime
@@ -155,7 +170,7 @@ const TimelineItemCard: React.FC<ItemProps> = memo(
               numberOfLines={2}
             >
               {event.type === 'mood'
-                ? `気分: ${displayLabel}`
+                ? `気分: ${displayIcon} ${displayLabel}`
                 : displayLabel}
             </Text>
 

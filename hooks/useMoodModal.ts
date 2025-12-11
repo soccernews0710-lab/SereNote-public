@@ -1,6 +1,8 @@
 // hooks/useMoodModal.tsx
 import { useState } from 'react';
+import type { SerenoteMoodValue } from '../src/types/mood';
 import type { TimelineEvent } from '../src/types/timeline';
+import { describeMood } from '../src/utils/mood';
 
 /**
  * 気分スコア（-2〜+2）
@@ -9,8 +11,10 @@ import type { TimelineEvent } from '../src/types/timeline';
  *  0: ふつう
  *  1: 少し良い
  *  2: とても良い
+ *
+ * 👉 型は SerenoteMoodValue をそのまま使う
  */
-export type MoodValue = -2 | -1 | 0 | 1 | 2;
+export type MoodValue = SerenoteMoodValue;
 
 // "HH:MM" を現在時刻から作る
 const getCurrentTimeString = () => {
@@ -53,25 +57,9 @@ export const useMoodModal = (): UseMoodModalReturn => {
     setVisible(false);
   };
 
-  // 気分スコア(-2〜+2) → ラベル & 絵文字
-  const buildMoodLabelAndEmoji = (): { label: string; emoji: string } => {
-    switch (mood) {
-      case -2:
-        return { label: 'とてもつらい', emoji: '😭' };
-      case -1:
-        return { label: 'つらい', emoji: '😣' };
-      case 0:
-        return { label: 'ふつう', emoji: '😐' };
-      case 1:
-        return { label: '少し良い', emoji: '🙂' };
-      case 2:
-      default:
-        return { label: 'とても良い', emoji: '😄' };
-    }
-  };
-
   const confirmAndCreateEvent = (onAdd: (event: TimelineEvent) => void) => {
-    const { label, emoji } = buildMoodLabelAndEmoji();
+    // 🌟 ユーティリティに寄せる
+    const { label, emoji } = describeMood(mood);
 
     const rawTime = timeText.trim();
     const time = rawTime !== '' ? rawTime : getCurrentTimeString();
