@@ -1,4 +1,4 @@
-// src/stats/ExportAllSection.tsx
+// app/stats/ExportAllSection.tsx
 import React from 'react';
 import {
   StyleSheet,
@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useTheme } from '../theme/useTheme';
+import { useTheme } from '../../src/theme/useTheme';
 
 type Props = {
   // 既存: 生の全イベントCSV
@@ -28,7 +28,11 @@ export const ExportAllSection: React.FC<Props> = ({
     <View
       style={[
         styles.card,
-        { backgroundColor: theme.colors.card },
+        {
+          backgroundColor: theme.colors.card,
+          borderColor: theme.colors.borderSoft,
+          shadowColor: '#000',
+        },
       ]}
     >
       <Text
@@ -53,15 +57,26 @@ export const ExportAllSection: React.FC<Props> = ({
       <TouchableOpacity
         style={[
           styles.button,
-          styles.primaryButton,
-          { backgroundColor: theme.colors.primary },
+          styles.secondaryButton,
+          { backgroundColor: theme.colors.surfaceAlt },
         ]}
         onPress={onExportWeeklyCsv}
+        activeOpacity={0.85}
       >
-        <Text style={styles.primaryButtonText}>
+        <Text
+          style={[
+            styles.secondaryButtonText,
+            { color: theme.colors.textMain },
+          ]}
+        >
           週間活動記録表（7日分）を CSV で出力
         </Text>
-        <Text style={styles.buttonSub}>
+        <Text
+          style={[
+            styles.buttonSub,
+            { color: theme.colors.textSub },
+          ]}
+        >
           1時間ごと × 1日ごとのマスに、生活の記録を書き出します。
           紙の「週間活動記録表」に近い形です。
         </Text>
@@ -69,10 +84,20 @@ export const ExportAllSection: React.FC<Props> = ({
 
       {/* 既存: 全イベントを1行1イベントで書き出すCSV */}
       <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
+        style={[
+          styles.button,
+          styles.secondaryButton,
+          { backgroundColor: theme.colors.surfaceAlt },
+        ]}
         onPress={onExportCsv}
+        activeOpacity={0.85}
       >
-        <Text style={styles.secondaryButtonText}>
+        <Text
+          style={[
+            styles.secondaryButtonText,
+            { color: theme.colors.textMain },
+          ]}
+        >
           全イベント一覧（詳細CSV）を出力
         </Text>
         <Text
@@ -88,10 +113,20 @@ export const ExportAllSection: React.FC<Props> = ({
 
       {/* 既存: JSONバックアップ */}
       <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
+        style={[
+          styles.button,
+          styles.secondaryButton,
+          { backgroundColor: theme.colors.surfaceAlt },
+        ]}
         onPress={onExportJson}
+        activeOpacity={0.85}
       >
-        <Text style={styles.secondaryButtonText}>
+        <Text
+          style={[
+            styles.secondaryButtonText,
+            { color: theme.colors.textMain },
+          ]}
+        >
           全データを JSON バックアップとして保存
         </Text>
         <Text
@@ -113,8 +148,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    marginTop: 8,
+    marginTop: 20,
     marginBottom: 16,
+    borderWidth: 1,
+    shadowOpacity: 0.03,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 1,
   },
   title: {
     fontSize: 14,
@@ -133,13 +173,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     shadowColor: '#000',
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.1,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
   },
-  secondaryButton: {
-    backgroundColor: '#F3F4F6',
-  },
+  secondaryButton: {},
   primaryButtonText: {
     fontSize: 13,
     fontWeight: '600',
@@ -148,7 +186,6 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#111827',
   },
   buttonSub: {
     fontSize: 11,

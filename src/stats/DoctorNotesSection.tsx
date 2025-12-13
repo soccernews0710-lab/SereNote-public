@@ -29,7 +29,11 @@ export const DoctorNotesSection: React.FC<Props> = ({
     const count = doctorSymptoms.length;
 
     if (count === 0) {
-      return { count: 0, previewItems: [] as DoctorSymptomItem[], restCount: 0 };
+      return {
+        count: 0,
+        previewItems: [] as DoctorSymptomItem[],
+        restCount: 0,
+      };
     }
 
     // 日付（YYYY-MM-DD）と time で新しい順にソート
@@ -55,7 +59,8 @@ export const DoctorNotesSection: React.FC<Props> = ({
         styles.sectionBox,
         {
           borderColor: theme.colors.borderSoft,
-          backgroundColor: theme.colors.surfaceAlt,
+          backgroundColor: theme.colors.card,
+          shadowColor: '#000',
         },
       ]}
     >
@@ -80,7 +85,15 @@ export const DoctorNotesSection: React.FC<Props> = ({
             「診察で話したい」にチェックした症状のメモをまとめて確認できます。
           </Text>
 
-          <View style={styles.countPill}>
+          <View
+            style={[
+              styles.countPill,
+              {
+                backgroundColor: theme.colors.surfaceAlt,
+                borderColor: theme.colors.borderSoft,
+              },
+            ]}
+          >
             <Text
               style={[
                 styles.countText,
@@ -105,7 +118,7 @@ export const DoctorNotesSection: React.FC<Props> = ({
                   ? theme.colors.borderSoft
                   : theme.colors.primary,
                 backgroundColor: disabled
-                  ? 'transparent'
+                  ? theme.colors.surfaceAlt
                   : theme.colors.primary,
               },
             ]}
@@ -114,7 +127,9 @@ export const DoctorNotesSection: React.FC<Props> = ({
             <Text
               style={[
                 styles.actionText,
-                { color: disabled ? theme.colors.textSub : '#FFFFFF' },
+                {
+                  color: disabled ? theme.colors.textSub : '#FFFFFF',
+                },
               ]}
             >
               ↑ エクスポート
@@ -129,7 +144,7 @@ export const DoctorNotesSection: React.FC<Props> = ({
               styles.actionButton,
               {
                 borderColor: theme.colors.borderSoft,
-                backgroundColor: 'transparent',
+                backgroundColor: theme.colors.surfaceAlt,
                 opacity: disabled ? 0.5 : 1,
               },
             ]}
@@ -224,6 +239,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginTop: 20,
     borderWidth: 1,
+    shadowOpacity: 0.03,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 1,
   },
   headerRow: {
     flexDirection: 'row',
@@ -246,8 +265,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'transparent',
-    backgroundColor: 'rgba(148, 163, 184, 0.15)', // tailwind slate-400-ish
   },
   countText: {
     fontSize: 11,

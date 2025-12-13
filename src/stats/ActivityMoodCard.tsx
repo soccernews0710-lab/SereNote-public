@@ -153,10 +153,14 @@ export const ActivityMoodCard: React.FC<Props> = ({
           </Text>
 
           <TouchableOpacity
-            style={styles.lockButton}
+            style={[
+              styles.lockButton,
+              { backgroundColor: theme.colors.primary }, // ← ここでテーマカラーを適用
+            ]}
             onPress={() =>
               router.push('/settings/user-settings-subscription')
             }
+            activeOpacity={0.9}
           >
             <Text style={styles.lockButtonText}>
               SereNote Pro について見る
@@ -382,7 +386,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#4F46E5',
   },
   lockButtonText: {
     fontSize: 12,
