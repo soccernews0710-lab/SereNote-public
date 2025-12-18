@@ -1,17 +1,18 @@
 {
   "expo": {
-    "name": "HealthProject",
+    "name": "SereNote",
     "slug": "HealthProject",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "healthproject",
+    "scheme": "serenote",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
 
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.sn.serenote",
+      "buildNumber": "1",
 
       "googleServicesFile": "./firebase/GoogleService-Info.plist",
 
