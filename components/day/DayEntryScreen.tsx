@@ -32,16 +32,18 @@ import SleepModal from '../today/SleepModal';
 import SymptomModal from '../today/SymptomModal';
 import WakeModal from '../today/WakeModal';
 
+// 🆕 呼吸エクササイズモーダル
+import BreathingExerciseModal from '../relax/BreathingExerciseModal';
+
 import { useActivityModal } from '../../hooks/useActivityModal';
 import { useDayEvents } from '../../hooks/useDayEvents';
 import { useMedicationModal } from '../../hooks/useMedicationModal';
 import { useMedicationSettings } from '../../hooks/useMedicationSettings';
 import { useMoodModal } from '../../hooks/useMoodModal';
-import { useNoteModal, type NoteModalMode } from '../../hooks/useNoteModal';
+import { useNoteModal } from '../../hooks/useNoteModal';
 import { useSleepModal } from '../../hooks/useSleepModal';
 import {
-  useSymptomModal,
-  type SymptomModalMode,
+  useSymptomModal
 } from '../../hooks/useSymptomModal';
 import { useWakeModal } from '../../hooks/useWakeModal';
 
@@ -112,6 +114,9 @@ export const DayEntryScreen: React.FC<Props> = ({
   // ✅ 保存トースト用 state
   const [savedFlashVisible, setSavedFlashVisible] = useState(false);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 🆕 呼吸エクササイズモーダル用 state
+  const [breathingModalVisible, setBreathingModalVisible] = useState(false);
 
   const showSavedFlash = () => {
     if (flashTimeoutRef.current) {
@@ -351,14 +356,14 @@ export const DayEntryScreen: React.FC<Props> = ({
     showSavedFlash();
   };
 
-  // ⭐ ノート: 新規 or 編集
-  const handleUpsertNoteEvent = (
-    event: TimelineEvent,
-    mode: NoteModalMode
-  ) => {
+  // ⭐ メモ: 新規 or 編集
+  const handleUpsertNoteEvent = (event: TimelineEvent) => {
     setEvents(prev => {
-      if (mode === 'edit') {
-        return prev.map(e => (e.id === event.id ? event : e));
+      const idx = prev.findIndex(e => e.id === event.id);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = event;
+        return updated;
       }
       return [...prev, event];
     });
@@ -366,67 +371,47 @@ export const DayEntryScreen: React.FC<Props> = ({
   };
 
   // ⭐ 症状: 新規 or 編集
-  const handleAddOrUpdateSymptom = (
-    event: TimelineEvent,
-    mode: SymptomModalMode
-  ) => {
+  const handleAddOrUpdateSymptom = (event: TimelineEvent) => {
     setEvents(prev => {
-      if (mode === 'edit') {
+      if (editingSymptomEvent && editingSymptomEvent.type === 'symptom') {
         return prev.map(e =>
-          e.id === event.id
-            ? {
-                ...e,
-                ...event,
-              }
+          e.id === editingSymptomEvent.id
+            ? { ...event, id: editingSymptomEvent.id }
             : e
         );
       }
-
-      const newSymptom: TimelineEvent = {
-        ...event,
-        type: 'symptom',
-        planned: event.planned ?? false,
-        forDoctor: event.forDoctor ?? false,
-      };
-
-      return [...prev, newSymptom];
+      return [...prev, event];
     });
-
     setEditingSymptomEvent(null);
     showSavedFlash();
   };
 
-  // ⭐ 症状プリセット: 長押しで即保存
+  // 🆕 症状クイック追加（プリセット長押し時）
   const handleQuickPresetSymptom = (payload: {
     label: string;
     memo: string;
     time: string;
     forDoctor: boolean;
-    tag?: unknown;
+    tag?: string;
   }) => {
-    const { label, memo, time, forDoctor } = payload;
+    const newEvent: TimelineEvent = {
+      id:
+        typeof globalThis !== 'undefined' &&
+        (globalThis as any).crypto &&
+        typeof (globalThis as any).crypto.randomUUID === 'function'
+          ? (globalThis as any).crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      time: payload.time,
+      type: 'symptom',
+      label: payload.label,
+      memo: payload.memo || undefined,
+      planned: false,
+      forDoctor: payload.forDoctor,
+      symptomTag: payload.tag,
+    } as TimelineEvent;
 
-    setEvents(prev => {
-      const newEvent: TimelineEvent = {
-        id:
-          typeof globalThis !== 'undefined' &&
-          (globalThis as any).crypto &&
-          typeof (globalThis as any).crypto.randomUUID === 'function'
-            ? (globalThis as any).crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        type: 'symptom',
-        label,
-        memo,
-        time,
-        forDoctor,
-        planned: false,
-      };
-      return [...prev, newEvent];
-    });
-
-    setEditingSymptomEvent(null);
+    setEvents(prev => [...prev, newEvent]);
     showSavedFlash();
-    symptomModal.closeModal();
   };
 
   // 「＋起床」ボタン → 新規モード
@@ -445,27 +430,22 @@ export const DayEntryScreen: React.FC<Props> = ({
     sleepModal.openModal();
   };
 
-  // 「＋薬」ボタン → 新規モード
+  // 「＋お薬」ボタン → 新規モード
   const handlePressAddMed = () => {
     setEditingMedEvent(null);
     medModal.openModal('morning', null);
   };
 
-  // 「＋気分」ボタン → 新規モード（Free / Pro 制限）
+  // 「＋気分」ボタン → 新規モード（Free制限チェック）
   const handlePressAddMood = () => {
+    // Free 版で上限到達 → Paywall
     if (!isPro && moodEventCount >= FREE_MOOD_LIMIT_PER_DAY) {
       Alert.alert(
-        'SereNote Pro',
-        `無料版では、1日に記録できる「気分」は最大 ${FREE_MOOD_LIMIT_PER_DAY} 件までです。\n\n` +
-          'より細かく一日の中の気分の変化を記録したい場合は、SereNote Pro のご利用をご検討ください。',
+        '気分記録の上限',
+        `無料プランでは 1 日 ${FREE_MOOD_LIMIT_PER_DAY} 回まで記録できます。\n\nPro にアップグレードすると、1 日に何回でも気分を記録できるようになります。`,
         [
           { text: '閉じる', style: 'cancel' },
-          {
-            text: 'Pro について',
-            onPress: () => {
-              openProPaywall();
-            },
-          },
+          { text: 'Pro について', onPress: openProPaywall },
         ]
       );
       return;
@@ -583,7 +563,7 @@ export const DayEntryScreen: React.FC<Props> = ({
       ]}
     >
       <View style={styles.container}>
-        {/* 🆕 前日 / 翌日ナビつきヘッダー */}
+        {/* 🆕 前日 / 翌日ナビつきヘッダー + 呼吸アイコン */}
         <View style={styles.headerRow}>
           {onChangeDate ? (
             <TouchableOpacity
@@ -600,8 +580,13 @@ export const DayEntryScreen: React.FC<Props> = ({
               </Text>
             </TouchableOpacity>
           ) : (
-            // Todayタブ用：左右のバランスを保つためのダミー
-            <View style={styles.headerNavButtonPlaceholder} />
+            // Todayタブ用：呼吸ボタンを左側に配置
+            <TouchableOpacity
+              style={styles.breathingButton}
+              onPress={() => setBreathingModalVisible(true)}
+            >
+              <Text style={styles.breathingButtonText}>🫁</Text>
+            </TouchableOpacity>
           )}
 
           <View style={styles.headerCenter}>
@@ -623,7 +608,13 @@ export const DayEntryScreen: React.FC<Props> = ({
               </Text>
             </TouchableOpacity>
           ) : (
-            <View style={styles.headerNavButtonPlaceholder} />
+            // Todayタブ用：右側にも呼吸ボタン（バランス用、またはダミー）
+            <TouchableOpacity
+              style={styles.breathingButton}
+              onPress={() => setBreathingModalVisible(true)}
+            >
+              <Text style={styles.breathingButtonText}>🧘</Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -671,6 +662,13 @@ export const DayEntryScreen: React.FC<Props> = ({
         </View>
       )}
 
+      {/* 🆕 呼吸エクササイズモーダル */}
+      <BreathingExerciseModal
+        visible={breathingModalVisible}
+        onRequestClose={() => setBreathingModalVisible(false)}
+        isPro={isPro}
+      />
+
       {/* 💊 お薬 */}
       <MedicationModal
         visible={medModal.visible}
@@ -684,18 +682,11 @@ export const DayEntryScreen: React.FC<Props> = ({
         setSelectedMedType={medModal.setSelectedMedType}
         selectedMedId={medModal.selectedMedId}
         setSelectedMedId={medModal.setSelectedMedId}
-        timeMode={medModal.timeMode}
-        setTimeMode={medModal.setTimeMode}
-        manualTime={medModal.manualTime}
-        setManualTime={medModal.setManualTime}
-        customMedName={medModal.customMedName}
-        setCustomMedName={medModal.setCustomMedName}
         dosageText={medModal.dosageText}
         setDosageText={medModal.setDosageText}
         memoText={medModal.memoText}
         setMemoText={medModal.setMemoText}
-        linkToReminder={medModal.linkToReminder}
-        setLinkToReminder={medModal.setLinkToReminder}
+        mode={editingMedEvent ? 'edit' : 'create'}
       />
 
       {/* 🌅 起床 */}
@@ -756,7 +747,7 @@ export const DayEntryScreen: React.FC<Props> = ({
           setEditingActivityEvent(null);
         }}
         onConfirm={() =>
-          activityModal.confirmAndSubmit(handleAddOrUpdateActivity)
+          activityModal.confirmAndCreateEvent(handleAddOrUpdateActivity)
         }
         category={activityModal.category}
         setCategory={activityModal.setCategory}
@@ -940,6 +931,18 @@ const styles = StyleSheet.create({
   headerCenter: {
     flex: 1,
     alignItems: 'center',
+  },
+
+  // 🆕 呼吸エクササイズボタン
+  breathingButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  breathingButtonText: {
+    fontSize: 22,
   },
 
   addEventButton: {

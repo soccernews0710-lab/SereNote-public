@@ -13,7 +13,6 @@ import TimePicker from '../common/TimePicker';
 
 // useMoodModal で使っている MoodValue を import
 import type { MoodValue } from '../../hooks/useMoodModal';
-import { describeMood } from '../../src/utils/mood';
 
 type Props = {
   visible: boolean;
@@ -36,11 +35,13 @@ const MOOD_VALUES: MoodValue[] = [-2, -1, 0, 1, 2];
 
 // ユーティリティ describeMood を使って
 // ラベル & 絵文字を生成しておく
-const MOOD_OPTIONS: { value: MoodValue; label: string; emoji: string }[] =
-  MOOD_VALUES.map(value => {
-    const { label, emoji } = describeMood(value);
-    return { value, label, emoji };
-  });
+const MOOD_OPTIONS: { value: MoodValue; label: string; emoji: string }[] = [
+  { value: -2, label: 'とてもつらい', emoji: '😭' },
+  { value: -1, label: 'つらい', emoji: '😣' },
+  { value: 0, label: 'ふつう', emoji: '😐' },
+  { value: 1, label: '少し良い', emoji: '🙂' },
+  { value: 2, label: 'とても良い', emoji: '😄' },
+];
 
 const MoodModal: React.FC<Props> = ({
   visible,

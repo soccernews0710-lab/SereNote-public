@@ -1,6 +1,6 @@
 // app/(tabs)/settings.tsx
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -13,10 +13,54 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSubscription } from '../../src/subscription/useSubscription';
 import { useTheme } from '../../src/theme/useTheme';
 
+// 🆕 バッジ関連
+import { BADGE_DEFINITIONS } from '../../src/badges/badgeDefinitions';
+import {
+  calculateAllBadgeProgress,
+  calculateBadgeStats,
+  getBreathingCount,
+  loadAchievedBadges,
+} from '../../src/badges/badgeLogic';
+import { loadAllEntries } from '../../src/storage/serenoteStorage';
+
 export default function SettingsTopScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { isPro } = useSubscription();
+
+  // 🆕 バッジ達成数
+  const [achievedBadgeCount, setAchievedBadgeCount] = useState(0);
+  const totalBadgeCount = BADGE_DEFINITIONS.length;
+
+  // 🆕 バッジ達成数を取得
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [entries, achievedBadges, breathingCount] = await Promise.all([
+          loadAllEntries(),
+          loadAchievedBadges(),
+          getBreathingCount(),
+        ]);
+
+        if (cancelled) return;
+
+        const allEntries = entries ?? {};
+        const stats = calculateBadgeStats(allEntries, breathingCount);
+        const progress = calculateAllBadgeProgress(stats, achievedBadges);
+        const achieved = progress.filter(p => p.isAchieved).length;
+
+        setAchievedBadgeCount(achieved);
+      } catch (e) {
+        console.warn('Failed to load badge count', e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const currentPlanLabel = isPro ? 'SereNote Pro' : 'Free（無料プラン）';
   const currentPlanDesc = isPro
@@ -136,6 +180,65 @@ export default function SettingsTopScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* ===== 🆕 達成バッジ ===== */}
+        <View style={styles.section}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.colors.textMain },
+            ]}
+          >
+            達成バッジ
+          </Text>
+
+          <TouchableOpacity
+            style={[
+              styles.itemCard,
+              { backgroundColor: theme.colors.card },
+            ]}
+            onPress={() => router.push('/settings/badges')}
+          >
+            <View style={styles.itemTextBox}>
+              <View style={styles.badgeHeaderRow}>
+                <Text
+                  style={[
+                    styles.itemTitle,
+                    { color: theme.colors.textMain },
+                  ]}
+                >
+                  🏅 達成バッジ
+                </Text>
+                <View
+                  style={[
+                    styles.badgeCountBadge,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
+                >
+                  <Text style={styles.badgeCountText}>
+                    {achievedBadgeCount}/{totalBadgeCount}
+                  </Text>
+                </View>
+              </View>
+              <Text
+                style={[
+                  styles.itemSubtitle,
+                  { color: theme.colors.textSub },
+                ]}
+              >
+                記録を続けるとバッジが獲得できます。あなたの頑張りを振り返りましょう。
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.itemChevron,
+                { color: theme.colors.textSub },
+              ]}
+            >
+              ›
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* ===== その他の項目 ===== */}
         <View style={styles.section}>
           <Text
@@ -198,7 +301,7 @@ export default function SettingsTopScreen() {
                   { color: theme.colors.textMain },
                 ]}
               >
-                アプリ情報（利用規約など）
+                アプリ情報
               </Text>
               <Text
                 style={[
@@ -206,7 +309,7 @@ export default function SettingsTopScreen() {
                   { color: theme.colors.textSub },
                 ]}
               >
-                利用規約・プライバシーポリシー・データの扱い・通知・使い方など。
+                利用規約・プライバシーポリシー・バージョン情報などを確認できます。
               </Text>
             </View>
             <Text
@@ -219,18 +322,6 @@ export default function SettingsTopScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* フッター */}
-        <View style={styles.footer}>
-          <Text
-            style={[
-              styles.footerText,
-              { color: theme.colors.textSub },
-            ]}
-          >
-            SereNote ver. 1.0
-          </Text>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -241,11 +332,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   container: {
-    padding: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -254,7 +345,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   section: {
-    marginTop: 8,
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 14,
@@ -264,42 +355,46 @@ const styles = StyleSheet.create({
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
   itemTextBox: {
     flex: 1,
+    paddingRight: 8,
   },
   itemTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
+    marginBottom: 4,
   },
   itemSubtitle: {
     fontSize: 12,
-    marginTop: 2,
+    lineHeight: 16,
   },
   itemChevron: {
-    fontSize: 20,
-    marginLeft: 8,
+    fontSize: 22,
+    fontWeight: '300',
   },
 
-  // サブスク関連
+  // サブスクリプション
   planHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 6,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   planBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
     borderWidth: 1,
   },
   planBadgeText: {
@@ -308,19 +403,29 @@ const styles = StyleSheet.create({
   },
   planDescription: {
     fontSize: 12,
-    marginTop: 2,
+    lineHeight: 17,
+    marginBottom: 6,
   },
   planLink: {
     fontSize: 12,
-    marginTop: 6,
-    fontWeight: '600',
+    fontWeight: '500',
   },
 
-  footer: {
-    marginTop: 24,
+  // 🆕 バッジ
+  badgeHeaderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 6,
+    gap: 8,
   },
-  footerText: {
+  badgeCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  badgeCountText: {
     fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

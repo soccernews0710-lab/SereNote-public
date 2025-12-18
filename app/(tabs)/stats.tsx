@@ -36,6 +36,7 @@ import { MedsCard } from '../../src/stats/MedsCard';
 import { MoodCard } from '../../src/stats/MoodCard';
 import { SleepCard } from '../../src/stats/SleepCard';
 import { StatsHeader } from '../../src/stats/StatsHeader';
+import { WeeklyReportCard } from '../../src/stats/WeeklyReportCard';
 
 import {
   buildStatsRowsForPeriod,
@@ -522,6 +523,12 @@ export default function StatsScreen() {
           showsVerticalScrollIndicator={false}
         >
           <OverviewCard rows={rows} periodLabel={periodLabel} />
+
+          {/* 🆕 週間レポートカード（7日表示のときのみ） */}
+          {period === '7d' && (
+            <WeeklyReportCard rows={rows} periodLabel="今週" />
+          )}
+
           <MoodCard rows={rows} periodLabel={periodLabel} />
           <SleepCard rows={rows} periodLabel={periodLabel} />
           <MedsCard rows={rows} periodLabel={periodLabel} />
